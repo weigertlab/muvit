@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "muvit"
+version = "0.0.1"  # Set your actual version here
+description = "Multi-Resolution Multi-Modal Vision Transformer for large microscopy images"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.11"
+license = { text = "BSD 3-Clause License" }
+authors = [
+    { name = "Albert Dominguez Mantes", email = "albert.dominguezmantes@epfl.ch" },
+    { name = "Martin Weigert", email = "martin.weigert@tu-dresden.de" },
+]
+urls = { Homepage = "https://github.com/weigertlab/muvit" }
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Environment :: GPU :: NVIDIA CUDA",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering"
+]
+
+dependencies = [
+    "argparse",
+    "augmend",
+    "cairosvg",
+    "configargparse",
+    "csbdeep",
+    "dask",
+    "einops",
+    "gputools",
+    "h5py",
+    "imageio",
+    "iohub",
+    "joblib",
+    "lightning",
+    "matplotlib",
+    "numpy",
+    "pynrrd",
+    "ome-zarr",
+    "pandas",
+    "Pillow",
+    "pynrrd",
+    "python-chess",
+    "python-Levenshtein",
+    "pyyaml",
+    "scikit-image",
+    "scikit-learn",
+    "scipy",
+    "torch",
+    "torchsummary",
+    "torchvision",
+    "tqdm",
+    "vit-pytorch",
+    "wandb",
+    "x-transformers",
+    "zarr"
+]
+
+[project.optional-dependencies]
+testing = [
+    "tox",
+    "pytest",
+    "pytest-cov",
+    "pytest-mock"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests*"]
+
+[tool.flake8]
+ignore = ["E116", "E501", "E203"]

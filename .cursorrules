@@ -1,0 +1,15 @@
+Here are some best practices and rules you must follow:
+
+- Use meaningful names: Choose descriptive variable, function, and class names.
+- Follow PEP 8: Adhere to the Python Enhancement Proposal 8 style guide for formatting.
+- Use docstrings: Document functions and classes with docstrings to explain their purpose.
+- Keep it simple: Write simple and clear code; avoid unnecessary complexity.
+- prefer tuple comprehensions over traditional loops when appropriate. 
+- prefer tuple over list when creating new variables that should not be changed, eg. 
+
+    name = ('John', 'Doe')    
+    or 
+    if name in ('John', 'Doe'): # do something
+
+- Add type hints to function and class definitions.
+- if you see the name "XXX" in the code, please follow it up with a detailed comment explaining the line above
