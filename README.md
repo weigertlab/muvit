@@ -14,6 +14,7 @@ Example on Mouse sections, left to right: masked input, reconstruction, GT, erro
 - [x] MuViTEncoder (2d and 3d)
 - [x] MuViTDecoder (2d and 3d)
 - [x] MuViT
+- [x] Lightning
 - [ ] Dataset/dataloading utilities
 - [x] Installable package
 
