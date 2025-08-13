@@ -1,7 +1,6 @@
 import pytest
-
-from muvit.encoders import MuViTEncoder2d, MuViTEncoder3d
 import torch
+from muvit.encoders import MuViTEncoder2d, MuViTEncoder3d
 
 
 def test_encoder_2d():
@@ -65,3 +64,4 @@ def test_encoder_3d():
     with pytest.raises(RuntimeError):
         with torch.inference_mode():
             _ = encoder(inp)
+
