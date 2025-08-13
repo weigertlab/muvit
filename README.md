@@ -7,6 +7,22 @@ This project implements a multi-resolution Vision Transformer (MuViT) architectu
 ![val_inout](https://github.com/user-attachments/assets/161e25b9-f234-432c-b431-74547b5056a7)
 Example on Mouse sections, left to right: masked input, reconstruction, GT, error. top row: high resolution, bottom: low resolution 
 
+
+## Refactor progress
+
+- [x] Building blocks (RotaryEmbedding, TransformerLayer, SaveableModel)
+- [x] MuViTEncoder (2d and 3d)
+- [ ] MuViTDecoder (2d and 3d)
+- [ ] MuViT
+- [x] Installable package
+
+## Installation
+
+```bash
+mamba create -y -n muvit python=3.11
+pip install -e .
+```
+
 ## Overview
 
 ## Dataloader

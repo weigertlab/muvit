@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "muvit"
 version = "0.0.1"  # Set your actual version here
-description = "Multi-Resolution Multi-Modal Vision Transformer for large microscopy images"
+description = "Multi-resolution multi-modal Vision Transformer for large microscopy images"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 license = { text = "BSD 3-Clause License" }
@@ -54,6 +54,7 @@ dependencies = [
     "scikit-learn",
     "scipy",
     "torch",
+    "torch-dct",
     "torchsummary",
     "torchvision",
     "tqdm",
