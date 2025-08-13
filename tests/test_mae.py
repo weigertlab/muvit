@@ -5,10 +5,12 @@ from typing import Tuple
 
 import pytest
 import torch
+
+from muvit.data import MuViTDataset
 from muvit.mae import MuViTMAE2d, MuViTMAE3d
 
 
-class DummyDataset(torch.utils.data.Dataset):
+class DummyDataset(MuViTDataset):
     def __init__(
         self,
         num_samples: int,
@@ -16,11 +18,24 @@ class DummyDataset(torch.utils.data.Dataset):
         spatial_size: Tuple[int, int, int],
         n_channels: int,
     ):
+        super().__init__()
         self.num_samples = num_samples
         self.spatial_size = spatial_size
-        self.n_levels = n_levels
-        self.n_channels = n_channels
-        self.ndim = 2 if self.spatial_size[0] == 1 else 3
+        self._n_levels = n_levels
+        self._n_channels = n_channels
+        self._ndim = 2 if self.spatial_size[0] == 1 else 3
+
+    @property
+    def n_levels(self):
+        return self._n_levels
+
+    @property
+    def n_channels(self):
+        return self._n_channels
+
+    @property
+    def ndim(self):
+        return self._ndim
 
     def __len__(self):
         return self.num_samples
