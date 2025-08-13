@@ -16,7 +16,6 @@ class MuViTDecoder(SaveableModel, ABC, Generic[T]):
         num_layers: int = 2,
         heads: int = 4,
         use_rotary_embed: bool = True,
-        ndim: int = 2,
         dropout: float = 0.0,
     ):
         """Initialize a Vision Transformer decoder.

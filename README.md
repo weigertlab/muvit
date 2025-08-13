@@ -12,8 +12,9 @@ Example on Mouse sections, left to right: masked input, reconstruction, GT, erro
 
 - [x] Building blocks (RotaryEmbedding, TransformerLayer, SaveableModel)
 - [x] MuViTEncoder (2d and 3d)
-- [ ] MuViTDecoder (2d and 3d)
-- [ ] MuViT
+- [x] MuViTDecoder (2d and 3d)
+- [x] MuViT
+- [ ] Dataset/dataloading utilities
 - [x] Installable package
 
 ## Installation
