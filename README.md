@@ -35,11 +35,11 @@ Any training dataset should inherit from MuViTDataset, which will run checks on 
 ```python
 from muvit.data import MuViTDataset
 
-class MyMuViTDataset(self):
+class MyMuViTDataset(MuViTDataset):
     def __init__(self):
         # whatever
 
-    def __len__(self):
+    def __len__(self) -> int:
         # whatever
 
     @property
@@ -54,7 +54,7 @@ class MyMuViTDataset(self):
     def ndim(self) -> int:
         # spatial dimensions, either 2 or 3
  
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> dict:
         # should return a dict like
         return {
             "img": img, # torch tensor of shape (L,C,(Z),Y,X)
