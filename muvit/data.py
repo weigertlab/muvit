@@ -28,8 +28,12 @@ class MuViTDataset(Dataset, ABC, metaclass=SanityCheckMeta):
         pass
 
     @property
-    @abstractmethod
     def n_levels(self):
+        return len(self.levels)
+    
+    @property
+    @abstractmethod
+    def levels(self):
         pass
 
     @property

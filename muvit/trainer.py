@@ -25,6 +25,7 @@ class WrappedModel(pl.LightningModule):
         warmup_epochs: int = 5,
         learning_rate: float = 1e-4,
         nobox: bool = False,
+        data_gen: torch.Generator = None,
     ):
         super().__init__()
         self.model = model
@@ -34,7 +35,7 @@ class WrappedModel(pl.LightningModule):
         self.outdir = outdir
         self.nobox = nobox
         self.save_hyperparameters(ignore=["model"])
-        self.data_gen = torch.Generator()
+        self.data_gen = data_gen or torch.Generator()
 
     def on_train_batch_start(self, batch, batch_idx):
         # Access the learning rate from the optimizer

@@ -362,6 +362,7 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
         num_nodes: Optional[int] = 1,
         precision: Optional[str] = "bf16-mixed",
         strategy: Optional[str] = "auto",
+        data_gen: Optional[torch.Generator] = None,
         dry: Optional[bool] = False,
         gradient_clip_val: Optional[float] = 0.5,
         fast_dev_run: bool = False,
@@ -390,7 +391,7 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
             n_gpus = max(torch.cuda.device_count(), 1)
             lr = 1e-4 * np.sqrt(train_dataloader.batch_size * n_gpus * num_nodes / 128)
 
-        wrapped_model = WrappedModel(self, num_epochs, output, warmup_epochs, lr, nobox)
+        wrapped_model = WrappedModel(self, num_epochs, output, warmup_epochs, lr, nobox, data_gen)
 
         trainer = pl.Trainer(
             max_epochs=num_epochs,

@@ -18,13 +18,13 @@ class DummyDataset(MuViTDataset):
         super().__init__()
         self.num_samples = num_samples
         self.spatial_size = spatial_size
-        self._n_levels = n_levels
+        self._levels = list(range(1, n_levels+1))
         self._n_channels = n_channels
         self._ndim = 2 if self.spatial_size[0] == 1 else 3
 
     @property
-    def n_levels(self):
-        return self._n_levels
+    def levels(self):
+        return self._levels
 
     @property
     def n_channels(self):
@@ -96,3 +96,6 @@ def test_data_buggy(ndim: int, bug_type: str):
             spatial_size=(1, 32, 32) if ndim == 2 else (16, 32, 32),
             n_channels=1,
         )
+
+if __name__ == "__main__":
+    ds = DummyDataset(10, 2, (1,32,32),1)
