@@ -47,7 +47,7 @@ class MyMuViTDataset(self):
         # number of channels
 
     @property
-    def levels(self) -> Tuple[int, ...]
+    def levels(self) -> Tuple[int, ...]:
         # resolution levels in sorted order
 
     @property
