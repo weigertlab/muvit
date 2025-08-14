@@ -25,11 +25,42 @@ mamba create -y -n muvit python=3.11
 pip install -e .
 ```
 
-## Overview
+## Quickstart
 
-## Dataloader
+### Creating a MuViT dataset
 
-TODO
+Any training dataset should inherit from MuViTDataset, which will run checks on the format. The following should be implemented:
+
+
+```python
+from muvit.data import MuViTDataset
+
+class MyMuViTDataset(self):
+    def __init__(self):
+        # whatever
+
+    def __len__(self):
+        # whatever
+
+    @property
+    def n_channels(self) -> int:
+        # number of channels
+
+    @property
+    def levels(self) -> Tuple[int, ...]
+        # resolution levels in sorted order
+
+    @property
+    def ndim(self) -> int:
+        # spatial dimensions, either 2 or 3
+ 
+    def __getitem__(self, idx):
+        # should return a dict like
+        return {
+            "img": img, # torch tensor of shape (L,C,(Z),Y,X)
+            "bbox": bbox, # torch tensor of shape (L,2,Nd)
+        } 
+```
 
 ## MuViT Model
 
