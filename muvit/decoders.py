@@ -80,6 +80,7 @@ class MuViTDecoder(SaveableModel, ABC, Generic[T]):
                 x = layer(x, coords=coords)
         return x
     
+    @classmethod
     @property
     @abstractmethod
     def ndim(self) -> int:
@@ -88,11 +89,13 @@ class MuViTDecoder(SaveableModel, ABC, Generic[T]):
 
 
 class MuViTDecoder2d(MuViTDecoder[Tuple[int, int]]):
+    @classmethod
     @property
     def ndim(self) -> int:
         return 2
 
 class MuViTDecoder3d(MuViTDecoder[Tuple[int, int, int]]):
+    @classmethod
     @property
     def ndim(self) -> int:
         return 3

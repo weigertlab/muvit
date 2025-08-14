@@ -17,6 +17,8 @@ from .decoders import MuViTDecoder, MuViTDecoder2d, MuViTDecoder3d
 from .encoders import MuViTEncoder, MuViTEncoder2d, MuViTEncoder3d
 from .trainer import WrappedModel
 
+import yaml
+
 T = TypeVar("T", bound=Tuple[int, ...])
 
 
@@ -155,18 +157,21 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
             raise ValueError(f"Invalid decoder mode: {decoder_mode}")
         self.loss_fn = loss
 
+    @classmethod
     @property
     @abstractmethod
     def encoder_class(self) -> Type[MuViTEncoder]:
         """Get the appropriate encoder class for this dimensionality."""
         pass
 
+    @classmethod
     @property
     @abstractmethod
     def decoder_class(self) -> Type[MuViTDecoder]:
         """Get the appropriate decoder class for this dimensionality."""
         pass
 
+    @classmethod
     @property
     @abstractmethod
     def ndim(self) -> int:
@@ -402,17 +407,20 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
             wrapped_model, train_dataloader, val_dataloader, ckpt_path=ckpt_path
         )
         return
-
+   
 
 class MuViTMAE2d(MuViTMAE[Tuple[int, int]]):
+    @classmethod
     @property
     def ndim(self) -> int:
         return 2
 
+    @classmethod
     @property
     def encoder_class(self) -> Type[MuViTEncoder]:
         return MuViTEncoder2d
 
+    @classmethod
     @property
     def decoder_class(self) -> Type[MuViTDecoder]:
         return MuViTDecoder2d
@@ -442,13 +450,17 @@ class MuViTMAE2d(MuViTMAE[Tuple[int, int]]):
 
 
 class MuViTMAE3d(MuViTMAE[Tuple[int, int, int]]):
+    @classmethod
+    @property
     def ndim(self) -> int:
         return 3
 
+    @classmethod
     @property
     def encoder_class(self) -> Type[MuViTEncoder]:
         return MuViTEncoder3d
 
+    @classmethod
     @property
     def decoder_class(self) -> Type[MuViTDecoder]:
         return MuViTDecoder3d

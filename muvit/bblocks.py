@@ -190,6 +190,11 @@ class SaveableModel(nn.Module, ABC):
         path = Path(path)
         with open(path / "config.yaml", "r") as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
+        if hasattr(cls, "ndim") and "ndim" in config.keys():
+            if config["ndim"] != cls.ndim:
+                raise ValueError(f"Expected ndim={cls.ndim}, but got {config['ndim']}. Are you sure you're instantiating the correct class?")
+        if "ndim" in config:
+            config.pop("ndim", None)
         model = cls(**config).to(device)
         model.load_state_dict(torch.load(path / "model.pth", map_location=device))
         return model

@@ -88,6 +88,7 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
             use_rotary_embed=use_rotary_embed,
             dropout=dropout,
             input_space=input_space,
+            ndim=self.ndim,
         )
 
         self.input_space = input_space
@@ -116,6 +117,7 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
             ]
         )
 
+    @classmethod
     @property
     @abstractmethod
     def ndim(self) -> int:
@@ -295,6 +297,7 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
 
 
 class MuViTEncoder2d(MuViTEncoder[Tuple[int, int]]):
+    @classmethod
     @property
     def ndim(self) -> int:
         return 2
@@ -403,6 +406,7 @@ class MuViTEncoder2d(MuViTEncoder[Tuple[int, int]]):
 
 
 class MuViTEncoder3d(MuViTEncoder[Tuple[int, int, int]]):
+    @classmethod
     @property
     def ndim(self) -> int:
         return 3

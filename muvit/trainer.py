@@ -33,7 +33,7 @@ class WrappedModel(pl.LightningModule):
         self.learning_rate = learning_rate
         self.outdir = outdir
         self.nobox = nobox
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=["model"])
         self.data_gen = torch.Generator()
 
     def on_train_batch_start(self, batch, batch_idx):

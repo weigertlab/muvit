@@ -1,11 +1,12 @@
 import os
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Tuple
 
 import pytest
 import torch
-
 from muvit.data import MuViTDataset
 from muvit.mae import MuViTMAE2d, MuViTMAE3d
 
@@ -89,6 +90,8 @@ def test_mae_fwd(input_space: str, in_channels: int, ndim: int):
 
 @pytest.mark.parametrize("in_channels", [1, 3])
 @pytest.mark.parametrize("ndim", [2, 3])
+@pytest.mark.filterwarnings("ignore:Starting from*") # lightning logging warning
+@pytest.mark.filterwarnings("ignore:The '*") # lightning dataloader warning
 def test_mae_fit(in_channels: int, ndim: int):
     if ndim not in (2, 3):
         raise ValueError("ndim must be either 2 or 3.")
@@ -120,5 +123,30 @@ def test_mae_fit(in_channels: int, ndim: int):
     model.fit(train_dl, val_dl, output=None, dry=True, fast_dev_run=True)
 
 
-if __name__ == "__main__":
-    test_mae_fit(3, 2)
+@pytest.mark.parametrize("ndim", [2, 3])
+def test_mae_io(ndim: int):
+    ActualCls = MuViTMAE2d if ndim == 2 else MuViTMAE3d
+    OtherCls = MuViTMAE3d if ndim == 2 else MuViTMAE2d
+    model = ActualCls(
+        in_channels=1,
+        levels=(1, 4),
+        num_layers=3,
+        heads=2,
+        masking_ratio=0.1,
+        dim=64,
+        dim_decoder=64,
+        input_space="real",
+    )
+    with TemporaryDirectory() as tmpdir:
+        model.save(Path(tmpdir) / "model", overwrite=True)
+
+        # Load wrong ndim model
+        with pytest.raises(ValueError):
+            _ = OtherCls.from_folder(Path(tmpdir) / "model")
+
+        loaded_model = ActualCls.from_folder(Path(tmpdir) / "model")
+    assert model._config == loaded_model._config
+    assert all(
+        (p1 == p2).all()
+        for p1, p2 in zip(model.parameters(), loaded_model.parameters())
+    )

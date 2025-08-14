@@ -1,6 +1,10 @@
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 import pytest
 import torch
 from muvit.encoders import MuViTEncoder2d, MuViTEncoder3d
+from tempfile import TemporaryDirectory
+from pathlib import Path
 
 
 def test_encoder_2d():
@@ -65,3 +69,32 @@ def test_encoder_3d():
         with torch.inference_mode():
             _ = encoder(inp)
 
+
+
+@pytest.mark.parametrize("ndim", [2, 3])
+def test_encoder_io(ndim: int):
+    ActualCls = MuViTEncoder2d if ndim == 2 else MuViTEncoder3d
+    OtherCls = MuViTEncoder3d if ndim == 2 else MuViTEncoder2d
+    encoder = ActualCls(
+        in_channels=1,
+        levels=(1.0, 4.0),
+        patch_size=(4, 4) if ndim == 2 else (4, 4, 4),
+        num_layers=3,
+        dim=64,
+        heads=2,
+        attention_mode="all",
+        use_level_embed=True,
+        use_rotary_embed=True,
+        input_space="real",
+        dropout=0.0,
+    )
+    with TemporaryDirectory() as tmpdir:
+        encoder.save(Path(tmpdir)/"model", overwrite=True)
+
+        # wrong ndim model
+        with pytest.raises(ValueError):
+            _ = OtherCls.from_folder(Path(tmpdir)/"model")
+
+        loaded_encoder = ActualCls.from_folder(Path(tmpdir)/"model")
+    assert encoder._config == loaded_encoder._config
+    assert all((p1==p2).all() for p1, p2 in zip(encoder.parameters(), loaded_encoder.parameters()))
