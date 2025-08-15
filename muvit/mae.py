@@ -17,8 +17,6 @@ from .decoders import MuViTDecoder, MuViTDecoder2d, MuViTDecoder3d
 from .encoders import MuViTEncoder, MuViTEncoder2d, MuViTEncoder3d
 from .trainer import WrappedModel
 
-import yaml
-
 T = TypeVar("T", bound=Tuple[int, ...])
 
 
