@@ -9,6 +9,7 @@ import lightning.pytorch as pl
 import numpy as np
 import torch
 import torch.nn.functional as F
+from argparse import Namespace
 from einops import rearrange
 from torch import Tensor, nn
 
@@ -364,6 +365,7 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
         dry: Optional[bool] = False,
         gradient_clip_val: Optional[float] = 0.5,
         fast_dev_run: bool = False,
+        args_namespace: Optional[Namespace] = None
     ):
         if num_nodes < 1:
             raise ValueError("The number of nodes should be at least 1.")
@@ -374,6 +376,8 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
             logger = pl.loggers.WandbLogger(
                 project=wandb_project, name=run_name, save_dir=output
             )
+            if args_namespace is not None:
+                logger.log_hyperparams(vars(args_namespace))
         elif logger is None:
             if not dry:
                 log.warning(
