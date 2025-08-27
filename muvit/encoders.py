@@ -127,19 +127,18 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
     def patchify(self, x: Tensor) -> Tensor:
         """Convert input tensor to patches.
 
-        Input: (B,C,H,W) -> Output: (B,N,P*P*C)
+        Input: (B,C,(T),(D),H,W) -> Output: (B,N,(P*)(P*)P*P*C)
         """
         if self.ndim == 2:
-            B, C, H, W = x.shape
+            # B, C, H, W
             x = rearrange(
                 x,
                 "b c (h p1) (w p2) -> b (h w) (p1 p2 c)",
                 p1=self.patch_size[0],
                 p2=self.patch_size[1],
             )
-            return x
         elif self.ndim == 3:
-            B, C, D, H, W = x.shape
+            # B, C, D, H, W
             x = rearrange(
                 x,
                 "b c (d p1) (h p2) (w p3) -> b (d h w) (p1 p2 p3 c)",
@@ -147,41 +146,19 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
                 p2=self.patch_size[1],
                 p3=self.patch_size[2],
             )
-            return x
-        else:
-            raise ValueError(f"Invalid number of dimensions: {self.ndim}")
-
-    def unpatchify(self, x: Tensor, H: int, W: int) -> Tensor:
-        """Convert patches back to original shape.
-
-        Input: (B,N,P*P*C) -> Output: (B,C,H,W)
-        """
-        if self.ndim == 2:
-            B, N, D = x.shape
+        elif self.ndim == 4:
+            # B, C, T, D, H, W
             x = rearrange(
                 x,
-                "b (h w) (p1 p2 c) -> b c (h p1) (w p2)",
-                p1=self.patch_size[0],
-                p2=self.patch_size[1],
-                h=H // self.patch_size[0],
-                w=W // self.patch_size[1],
-            )
-            return x
-        elif self.ndim == 3:
-            B, N, D = x.shape
-            x = rearrange(
-                x,
-                "b (d h w) (p1 p2 p3 c) -> b c (d p1) (h p2) (w p3)",
+                "b c (t p1) (d p2) (h p3) (w p4) -> b (t d h w) (p1 p2 p3 p4 c)",
                 p1=self.patch_size[0],
                 p2=self.patch_size[1],
                 p3=self.patch_size[2],
-                d=D // self.patch_size[0],
-                h=H // self.patch_size[1],
-                w=W // self.patch_size[2],
+                p4=self.patch_size[3],
             )
-            return x
         else:
             raise ValueError(f"Invalid number of dimensions: {self.ndim}")
+        return x
 
     @abstractmethod
     def get_patch_coords(
@@ -299,7 +276,7 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
 class MuViTEncoder2d(MuViTEncoder[Tuple[int, int]]):
     @classmethod
     @property
-    def ndim(self) -> int:
+    def ndim(self) -> int: # FIXME: breaks in py313 as classmethod+properties are deprecated
         return 2
 
     def get_patch_coords(
@@ -518,4 +495,123 @@ class MuViTEncoder3d(MuViTEncoder[Tuple[int, int, int]]):
         d = D // self.patch_size[0]
         h = H // self.patch_size[1]
         w = W // self.patch_size[2]
-        return rearrange(feats, "b (l h w d) n -> b l n d h w", l=L, h=h, w=w, d=d)
+        return rearrange(feats, "b (l d h w) n -> b l n d h w", l=L, h=h, w=w, d=d)
+
+
+class MuViTEncoder4d(MuViTEncoder[Tuple[int, int, int]]):
+    @classmethod
+    @property
+    def ndim(self) -> int:
+        return 4
+
+    def get_patch_coords(
+        self,
+        B: int,
+        L: int,
+        T: int,
+        D: int,
+        H: int,
+        W: int,
+        bbox: Optional[tuple[Tensor, Tensor]] = None,
+    ) -> Tensor:
+        """Get coordinates for each patch.
+
+        Returns: (B,L*D*H*W,3) coordinates
+        """
+        t, d, h, w = (
+            T // self.patch_size[0],
+            D // self.patch_size[1],
+            H // self.patch_size[2],
+            W // self.patch_size[3],
+        )
+
+        if bbox is None:
+            bbox = (
+                [
+                    [-lv * (T / 2 - 0.5), -lv * (D / 2 - 0.5), -lv * (H / 2 - 0.5), -lv * (W / 2 - 0.5)]
+                    for lv in self.levels
+                ],
+                [
+                    [lv * (T / 2 - 0.5), lv * (D / 2 - 0.5), lv * (H / 2 - 0.5), lv * (W / 2 - 0.5)]
+                    for lv in self.levels
+                ],
+            )
+            bbox = torch.tensor(bbox).permute(1, 0, 2)
+            bbox = bbox.view(1, L, 2, self.ndim).repeat(B, 1, 1, 1)
+
+        if not bbox.ndim == 4 and bbox.shape[:3] == (B, L, 4):
+            raise ValueError(
+                f"Bounding box must be of shape (B, L, 2, 4): {bbox.shape}"
+            )
+        coords = torch.meshgrid(
+            torch.linspace(0, 1, t),
+            torch.linspace(0, 1, d),
+            torch.linspace(0, 1, h),
+            torch.linspace(0, 1, w),
+            indexing="ij",
+        )
+        coords = torch.stack(coords, dim=-1).to(bbox.device)  # (t, d, h, w, 4)
+        coords = coords.view(1, 1, t, d, h, w, 4)  # (1, 1, t, d, h, w, 4)
+        coords = coords.repeat(B, L, 1, 1, 1, 1, 1)  # (B, L, t, d, h, w, 4)
+
+        # Scale and offset coords according to bbox
+        top_left = bbox[:, :, 0, :].view(B, L, 1, 1, 1, 1, self.ndim)  # (B, L, 1, 1, 1, 1, 3)
+        bottom_right = bbox[:, :, 1, :].view(B, L, 1, 1, 1, 1, self.ndim)  # (B, L, 1, 1, 1, 1, 3)
+        coords = top_left + coords * (bottom_right - top_left)  # (B, L, t, d, h, w, 3)
+
+        coords = rearrange(coords, "b l t d h w c -> b (l t d h w) c")
+        return coords.to(bbox.device)
+
+    def patch_embed(
+        self, x: Tensor, bbox: Optional[tuple[Tensor, Tensor]] = None
+    ) -> Tuple[Tensor, Tensor, Tensor]:
+        """Process multi-level input through patch embedding.
+
+        Input: x (B, L, C, T, D, H, W), bbox (B, L, 2, 4)
+        Output: x (B, N, D), patches (B, N, C*T*D*H*W), coords (B, N, 4)
+        """
+        B, L, C, T, D, H, W = x.shape
+        assert L == len(self.levels), "Number of levels must match"
+
+        if bbox is not None:
+            expected_shape = (B, L, 2, 4)
+            if not (bbox.ndim == 4 and bbox.shape[:3] == (B, L, 2)):
+                raise ValueError(
+                    f"Bounding box must be of shape {expected_shape}: {bbox.shape}"
+                )
+
+        coords = self.get_patch_coords(B, L, T, D, H, W, bbox=bbox).to(x.device)
+
+        # patchify assumes batch dimension is first, so we loop over levels
+        x = x.transpose(0, 1)
+        patches = tuple(self.patch_space_transform(self.patchify(_x)) for _x in x)
+        x = tuple(pro(pat) for pro, pat in zip(self.proj, patches))
+
+        if self.level_embed is not None:
+            x = tuple(x + le for x, le in zip(x, self.level_embed))
+
+        # back to B, L order
+        x = torch.cat(x, dim=1)
+        patches = torch.cat(patches, dim=1)
+
+        return x, patches, coords
+
+    def compute_features(self, x: Tensor, bbox: Optional[Tensor] = None) -> Tensor:
+        """
+        Compute features from a given input stack/bbox and return them in a spatially structured way.
+
+        Args:
+            x: Input tensor of shape (B, L, C, T, D, H, W)
+            bbox: Optional bounding box coords
+
+        Returns:
+            feats: Features of shape (B, L, N, T', D', H', W') where H' = H // patch_size[0], W' = W // patch_size[1], D is the feature dimension
+        """
+        feats, _, _ = self(x, bbox=bbox)
+        T, D, H, W = x.shape[-4], x.shape[-3], x.shape[-2], x.shape[-1]
+        L = len(self.levels)
+        t = T // self.patch_size[0]
+        d = D // self.patch_size[1]
+        h = H // self.patch_size[2]
+        w = W // self.patch_size[3]
+        return rearrange(feats, "b (l t d h w) n -> b l n t d h w", l=L, t=t, d=d, h=h, w=w)

@@ -65,8 +65,12 @@ def create_image_grid(x, output, bbox=None):
     if x.ndim == 5:
         B, L, C, H, W = x.shape
         D = None
+        T = None
     elif x.ndim == 6:
         B, L, C, D, H, W = x.shape
+        T = None
+    elif x.ndim == 7:
+        B, L, C, T, D, H, W = x.shape
     else:
         raise ValueError(f"Invalid input shape: {x.shape}")
 
@@ -74,7 +78,13 @@ def create_image_grid(x, output, bbox=None):
     y = output["reco"][0].detach().cpu().numpy()
     z = output["input_masked"][0].detach().cpu().numpy()
 
-    if D is not None:
+    if T is not None and D is not None:
+        x = x[:, :, T // 2, D // 2]
+        y = y[:, :, T // 2, D // 2]
+        z = z[:, :, T // 2, D // 2]
+        bbox = bbox[..., 2:]
+
+    elif T is None and D is not None:
         x = x[:, :, D // 2]
         y = y[:, :, D // 2]
         z = z[:, :, D // 2]

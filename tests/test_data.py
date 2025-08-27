@@ -20,7 +20,7 @@ class DummyDataset(MuViTDataset):
         self.spatial_size = spatial_size
         self._levels = list(range(1, n_levels+1))
         self._n_channels = n_channels
-        self._ndim = 2 if self.spatial_size[0] == 1 else 3
+        self._ndim = len(spatial_size)
 
     @property
     def levels(self):
@@ -43,7 +43,6 @@ class DummyDataset(MuViTDataset):
             raise IndexError("Dataset index out of range")
         img = (
             torch.randn((self.n_levels, self.n_channels, *self.spatial_size))
-            .squeeze(2)
             .float()
         )
         bbox = torch.randn((self.n_levels, 2, self.ndim)).float()
@@ -73,27 +72,37 @@ class BuggyDummyDataset(DummyDataset):
             res["bbox"] = torch.stack(2*[res["bbox"]], dim=2)
         return res
 
-@pytest.mark.parametrize("ndim", [2, 3])
+@pytest.mark.parametrize("ndim", [2, 3, 4])
 def test_data_ok(ndim: int):
+    ndim_to_spatial_size = {
+        2: (32, 32),
+        3: (16, 32, 32),
+        4: (4, 16, 32, 32)
+    }
     ds = DummyDataset(
         num_samples=10,
         n_levels=2,
-        spatial_size=(1, 32, 32) if ndim == 2 else (16, 32, 32),
+        spatial_size=ndim_to_spatial_size[ndim],
         n_channels=1,
     )
     _item = ds[3]
     assert "img" in _item.keys()
     assert "bbox" in _item.keys()
 
-@pytest.mark.parametrize("ndim", [2, 3])
+@pytest.mark.parametrize("ndim", [2, 3, 4])
 @pytest.mark.parametrize("bug_type", ["img_shape", "img_lvs", "img_ch", "bbox_shape", "bbox_lvs", "bbox_ndim"])
 def test_data_buggy(ndim: int, bug_type: str):
+    ndim_to_spatial_size = {
+        2: (32, 32),
+        3: (16, 32, 32),
+        4: (4, 16, 32, 32)
+    }
     with pytest.raises(ValueError):
         _ = BuggyDummyDataset(
             bug_type=bug_type,
             num_samples=10,
             n_levels=2,
-            spatial_size=(1, 32, 32) if ndim == 2 else (16, 32, 32),
+            spatial_size=ndim_to_spatial_size[ndim],
             n_channels=1,
         )
 

@@ -14,8 +14,8 @@ from einops import rearrange
 from torch import Tensor, nn
 
 from .bblocks import SaveableModel
-from .decoders import MuViTDecoder, MuViTDecoder2d, MuViTDecoder3d
-from .encoders import MuViTEncoder, MuViTEncoder2d, MuViTEncoder3d
+from .decoders import MuViTDecoder, MuViTDecoder2d, MuViTDecoder3d, MuViTDecoder4d
+from .encoders import MuViTEncoder, MuViTEncoder2d, MuViTEncoder3d, MuViTEncoder4d
 from .trainer import WrappedModel
 
 T = TypeVar("T", bound=Tuple[int, ...])
@@ -199,6 +199,15 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
                 p1=self.patch_size[0],
                 p2=self.patch_size[1],
                 p3=self.patch_size[2],
+            )
+        elif self.ndim == 4:
+            return rearrange(
+                x,
+                "b n (p1 p2 p3 p4) -> b n p1 p2 p3 p4",
+                p1=self.patch_size[0],
+                p2=self.patch_size[1],
+                p3=self.patch_size[2],
+                p4=self.patch_size[3],
             )
         else:
             raise ValueError(f"Invalid number of dimensions: {self.ndim}")
@@ -486,6 +495,50 @@ class MuViTMAE3d(MuViTMAE[Tuple[int, int, int]]):
                     p1=self.patch_size[0],
                     p2=self.patch_size[1],
                     p3=self.patch_size[2],
+                )
+                for _x in x
+            ],
+            dim=1,
+        )
+        return x
+
+
+class MuViTMAE4d(MuViTMAE[Tuple[int, int, int]]):
+    @classmethod
+    @property
+    def ndim(self) -> int:
+        return 4
+
+    @classmethod
+    @property
+    def encoder_class(self) -> Type[MuViTEncoder]:
+        return MuViTEncoder4d
+
+    @classmethod
+    @property
+    def decoder_class(self) -> Type[MuViTDecoder]:
+        return MuViTDecoder4d
+
+    def patch_token_to_image(self, x: Tensor, C: int, T: int, D: int, H: int, W: int) -> Tensor:
+        """Convert patch tokens back to image.
+
+        Input: (B, N, T*D*H*W*C) -> Output: (B, L, C, T, D, H, W)
+        """
+        x = torch.split(x, x.shape[1] // len(self.encoder.levels), dim=1)
+        x = torch.stack(
+            [
+                rearrange(
+                    _x,
+                    "b (t d h w) (p1 p2 p3 p4 c) -> b c (t p1) (d p2) (h p3) (w p4)",
+                    c=C,
+                    t=T // self.patch_size[0],
+                    d=D // self.patch_size[1],
+                    h=H // self.patch_size[2],
+                    w=W // self.patch_size[3],
+                    p1=self.patch_size[0],
+                    p2=self.patch_size[1],
+                    p3=self.patch_size[2],
+                    p4=self.patch_size[3],
                 )
                 for _x in x
             ],

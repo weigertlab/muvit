@@ -45,8 +45,8 @@ class MuViTDataset(Dataset, ABC, metaclass=SanityCheckMeta):
         pass
 
     def _sanity_check(self):
-        if self.ndim not in (2, 3):
-            raise ValueError("ndim must be 2 or 3")
+        if self.ndim not in (2, 3, 4):
+            raise ValueError("ndim must be 2, 3 or 4")
         if len(self) == 0:
             raise ValueError("Dataset is empty.")
         sample = self[0]
@@ -63,7 +63,11 @@ class MuViTDataset(Dataset, ABC, metaclass=SanityCheckMeta):
                     f"Expected bbox shape {expected_bbox_shape}, got {tuple(bbox.shape)}"
                 )
 
-        expected_img_ndim = 4 if self.ndim == 2 else 5
+        expected_img_ndim = {
+            2: 4,
+            3: 5,
+            4: 6
+        }[self.ndim]
         if img.ndim != expected_img_ndim:
             raise ValueError(
                 f"Expected img.ndim = {expected_img_ndim} for ndim={self.ndim} (L,C"

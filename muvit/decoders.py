@@ -91,11 +91,17 @@ class MuViTDecoder(SaveableModel, ABC, Generic[T]):
 class MuViTDecoder2d(MuViTDecoder[Tuple[int, int]]):
     @classmethod
     @property
-    def ndim(self) -> int:
+    def ndim(self) -> int: # FIXME: deprecated in py313
         return 2
 
 class MuViTDecoder3d(MuViTDecoder[Tuple[int, int, int]]):
     @classmethod
     @property
-    def ndim(self) -> int:
+    def ndim(self) -> int: # FIXME: deprecated in py313
         return 3
+
+class MuViTDecoder4d(MuViTDecoder[Tuple[int, int, int]]):
+    @classmethod
+    @property
+    def ndim(self) -> int: # FIXME: deprecated in py313
+        return 4
