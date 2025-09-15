@@ -63,11 +63,7 @@ class MuViTDataset(Dataset, ABC, metaclass=SanityCheckMeta):
                     f"Expected bbox shape {expected_bbox_shape}, got {tuple(bbox.shape)}"
                 )
 
-        expected_img_ndim = {
-            2: 4,
-            3: 5,
-            4: 6
-        }[self.ndim]
+        expected_img_ndim = {2: 4, 3: 5, 4: 6}[self.ndim]
         if img.ndim != expected_img_ndim:
             raise ValueError(
                 f"Expected img.ndim = {expected_img_ndim} for ndim={self.ndim} (L,C"
@@ -89,6 +85,7 @@ class MuViTDataset(Dataset, ABC, metaclass=SanityCheckMeta):
                 "Sample visualization in 3d is not implemented yet."
             )
         import numpy as np
+
         from .utils import box_annotate
 
         _item = self[idx]
@@ -106,8 +103,23 @@ class MuViTDataset(Dataset, ABC, metaclass=SanityCheckMeta):
         elif img.shape[0] > 3:
             img = img[:3]
 
+        if "label" in _item and _item["label"] is not None:
+            from skimage.color import label2rgb
+            label = _item["label"].cpu().numpy()
+            label_cp = np.zeros((label.shape[0], 3, label.shape[1], label.shape[2]))
+
+            for s in range(label.shape[0]):
+                label_cp[s] = label2rgb(label[s], channel_axis=0) # CYX
+            box_annotate(label_cp, bbox)
+            label_cp = np.concatenate(np.pad(label_cp, ((0, 0), (0, 0), (1, 1), (1, 1)), constant_values=1),axis=-2)
+            if img.ndim != label_cp.ndim:
+                img = np.stack([img]*label_cp.shape[0], axis=0)
+            img = np.concatenate([img, label_cp], axis=-1)
+
         if save_file:
             import matplotlib.pyplot as plt
+
+            save_file = Path(save_file)
             save_file.parent.mkdir(exist_ok=True, parents=True)
             fig, ax = plt.subplots(figsize=(10, 10))
             ax.imshow(img.transpose(1, 2, 0))

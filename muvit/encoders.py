@@ -250,7 +250,7 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
 
         return x, coords, patches, batch_range, idx_retain, idx_mask
 
-    def forward(self, x: Tensor, bbox: Optional[Tensor] = None):
+    def forward(self, x: Tensor, bbox: Optional[Tensor] = None, return_intermediate_idxs: Optional[Tuple[int]] = None):
         """Process multi-level input through the encoder."""
         x, patches, coords = self.patch_embed(x, bbox)
         B, N, D = x.shape
@@ -263,14 +263,22 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
             .repeat(patches.shape[0], 1)
         )
         level_idx = level_idx // N_per_level
-        for layer in self.layers:
+        if return_intermediate_idxs is not None:
+            interm_outputs = []
+        for i, layer in enumerate(self.layers):
             x = layer(
                 x,
                 level_idx=level_idx,
                 coords=coords,
                 attention_mode=self.attention_mode,
             )
-        return x, coords, level_idx
+            if return_intermediate_idxs is not None and i in return_intermediate_idxs:
+                interm_outputs.append(x)
+
+        if return_intermediate_idxs is not None:
+            return x, coords, level_idx, tuple(interm_outputs)
+        else:
+            return x, coords, level_idx
 
 
 class MuViTEncoder2d(MuViTEncoder[Tuple[int, int]]):

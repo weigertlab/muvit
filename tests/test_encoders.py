@@ -35,7 +35,7 @@ def test_encoder_2d():
 
     inp = torch.randn((B, L, C, H, W))
     with torch.inference_mode():
-        _ = encoder(inp)
+        _ = encoder(inp, return_intermediate_idxs=(0,2))
 
     C = 2
     inp = torch.randn((B, L, C, H, W))
