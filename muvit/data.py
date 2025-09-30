@@ -1,8 +1,11 @@
 from abc import ABC, ABCMeta, abstractmethod
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from torch.utils.data import Dataset
+
+import matplotlib.pyplot as plt
+from skimage.color import label2rgb
 
 
 class SanityCheckMeta(ABCMeta):
@@ -79,17 +82,31 @@ class MuViTDataset(Dataset, ABC, metaclass=SanityCheckMeta):
                 f"Expected img.shape[1] (C) = {self.n_channels}, got {img.shape[1]}"
             )
 
-    def visualize_sample(self, idx: int = 0, save_file: Optional[Path] = None):
-        if self.ndim != 2:
+    def visualize_sample(self, idx: int = 0, save_file: Optional[Path] = None, view: Literal["yx", "zx", "zy"] = "yx", continuous_label_cmap=None):
+        if self.ndim not in (2,3):
             raise NotImplementedError(
-                "Sample visualization in 3d is not implemented yet."
+                "Sample visualization is implemented for 2d and 3d only."
             )
         import numpy as np
 
         from .utils import box_annotate
 
         _item = self[idx]
+
         img, bbox = _item["img"].cpu().numpy(), _item["bbox"].cpu().numpy()
+        if self.ndim == 3 and view not in ("yx", "zy", "zx"):
+            raise ValueError("view must be one of 'yx', 'zy', 'zx'")
+
+        if self.ndim == 3 and view == "yx":
+            img = img[..., img.shape[-3] // 2, :, :]
+            bbox = bbox[:, :, 1:]
+        elif self.ndim == 3 and view == "zx":
+            img = img[..., img.shape[-2] // 2, :]
+            bbox = bbox[:, :, [0, 2]]
+        elif self.ndim == 3 and view == "zy":
+            img = img[..., img.shape[-1] // 2]
+            bbox = bbox[:, :, :2]
+
 
         box_annotate(img, bbox)
         img = np.concatenate(
@@ -104,12 +121,17 @@ class MuViTDataset(Dataset, ABC, metaclass=SanityCheckMeta):
             img = img[:3]
 
         if "label" in _item and _item["label"] is not None:
-            from skimage.color import label2rgb
             label = _item["label"].cpu().numpy()
             label_cp = np.zeros((label.shape[0], 3, label.shape[1], label.shape[2]))
 
-            for s in range(label.shape[0]):
-                label_cp[s] = label2rgb(label[s], channel_axis=0) # CYX
+            if continuous_label_cmap is None:
+                for s in range(label.shape[0]):
+                    label_cp[s] = label2rgb(label[s], channel_axis=0) # CYX
+            else:
+                cmap_fun = plt.cm.get_cmap(continuous_label_cmap)
+                for s in range(label.shape[0]):
+                    label_cp[s] = cmap_fun(label[s])[...,:3].transpose(2,0,1) # C,Y,X
+
             box_annotate(label_cp, bbox)
             label_cp = np.concatenate(np.pad(label_cp, ((0, 0), (0, 0), (1, 1), (1, 1)), constant_values=1),axis=-2)
             if img.ndim != label_cp.ndim:
@@ -117,12 +139,13 @@ class MuViTDataset(Dataset, ABC, metaclass=SanityCheckMeta):
             img = np.concatenate([img, label_cp], axis=-1)
 
         if save_file:
-            import matplotlib.pyplot as plt
-
             save_file = Path(save_file)
             save_file.parent.mkdir(exist_ok=True, parents=True)
             fig, ax = plt.subplots(figsize=(10, 10))
-            ax.imshow(img.transpose(1, 2, 0))
+            if img.ndim > 2:
+                ax.imshow(img.transpose(1,2,0))
+            else:
+                ax.imshow(img, cmap="gray")
             ax.axis("off")
             ax.spines["top"].set_visible(False)
             ax.spines["right"].set_visible(False)

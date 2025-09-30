@@ -84,17 +84,19 @@ class WrappedModel(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             sync_dist=True,
+            batch_size=len(img),
         )
-        self.log("batch_size", len(img), on_step=True, prog_bar=False, sync_dist=False)
+        self.log("batch_size", len(img), on_step=True, prog_bar=False, sync_dist=False, batch_size=len(img))
         self.log(
             "batch_mean",
             img.mean().item(),
             on_step=True,
             prog_bar=False,
             sync_dist=False,
+            batch_size=len(img),
         )
         _norm = grad_norm(self.model, 2).get("grad_2.0_norm_total", 0)
-        self.log("grad_norm", _norm, on_step=True, prog_bar=False, sync_dist=False)
+        self.log("grad_norm", _norm, on_step=True, prog_bar=False, sync_dist=False, batch_size=len(img))
 
         if (
             self.current_epoch % 2 == 0
@@ -130,7 +132,7 @@ class WrappedModel(pl.LightningModule):
             )
         output = self.model(img, bbox=bbox if not self.nobox else None, return_all=True)
         loss = output["loss"]
-        self.log("val_loss", loss, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log("val_loss", loss, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=len(img))
         if (
             self.trainer.is_global_zero
             and batch_idx < 4
