@@ -114,7 +114,7 @@ class MuViTDataset(Dataset, ABC, metaclass=SanityCheckMeta):
         )
 
         if img.shape[0] == 1:
-            img = img[0]
+            img = np.repeat(img, 3, axis=0)
         elif img.shape[0] == 2:
             img = np.stack([img[0], img[1], img[0]], axis=0)
         elif img.shape[0] > 3:
