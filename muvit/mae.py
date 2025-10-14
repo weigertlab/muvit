@@ -46,11 +46,13 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
         loss: Literal["mse", "norm_mse"] = "mse",
         masking_ratio: float = 0.75,
         use_level_embed: bool = True,
-        use_rotary_embed: bool = True,
+        rotary_mode: Literal["none", "fixed", "shared", "per_layer"] = "per_layer",
+        rotary_base: int = 10000,
         attention_mode: Literal["all", "causal", "same", "random"] = "all",
         masking_mode: Literal["dirichlet", "random"] | tuple[float] = "dirichlet",
         input_space: Literal["real", "dct"] = "real",
         dropout: float = 0.0,
+        use_rotary_embed: Optional[bool] = None,
     ):
         """Initialize a Masked Autoencoder with multi-level Vision Transformer.
 
@@ -67,12 +69,23 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
             loss: Type of loss function ('mse', 'norm_mse')
             masking_ratio: Ratio of patches to mask
             use_level_embed: Whether to use level embeddings
-            use_rotary_embed: Whether to use rotary embeddings
+            rotary_mode: Type of rotary embeddings (none/fixed/shared/per_layer)
+            rotary_base: Base for rotary embeddings
             attention_mode: Type of attention masking
             masking_mode: Type of masking ('dirichlet', 'random' or tuple of probabilities)
             dropout: Dropout probability for transformer layers
+            use_rotary_embed: Deprecated, use rotary_mode instead
         """
         super().__init__()
+
+        if use_rotary_embed is not None:
+            import warnings
+            warnings.warn(
+                "use_rotary_embed is deprecated, use rotary_mode instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            rotary_mode = "per_layer" if use_rotary_embed else "none"
 
         if dim_decoder is None:
             dim_decoder = dim
@@ -89,7 +102,8 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
             dim=dim,
             heads=heads,
             use_level_embed=use_level_embed,
-            use_rotary_embed=use_rotary_embed,
+            rotary_mode=rotary_mode,
+            rotary_base=rotary_base,
             decoder_mode=decoder_mode,
             loss=loss,
             masking_ratio=masking_ratio,
@@ -110,7 +124,8 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
             dim=dim,
             heads=heads,
             use_level_embed=use_level_embed,
-            use_rotary_embed=use_rotary_embed,
+            rotary_mode=rotary_mode,
+            rotary_base=rotary_base,
             attention_mode=attention_mode,
             dropout=dropout,
             input_space=input_space,
@@ -132,7 +147,8 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
                 dim_decoder,
                 num_layers=num_layers_decoder,
                 heads=heads,
-                use_rotary_embed=use_rotary_embed,
+                rotary_mode=rotary_mode,
+                rotary_base=rotary_base,
                 dropout=dropout,
             )
         elif decoder_mode in ("multi", "multi_iso"):
@@ -146,7 +162,8 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
                         dim_decoder,
                         num_layers=num_layers_decoder,
                         heads=heads,
-                        use_rotary_embed=use_rotary_embed,
+                        rotary_mode=rotary_mode,
+                        rotary_base=rotary_base,
                         dropout=dropout,
                     )
                     for _ in range(len(self.encoder.levels))
