@@ -6,8 +6,9 @@ import torch
 import torch_dct
 from einops import rearrange
 from torch import Tensor, nn
+from x_transformers.x_transformers import RotaryEmbedding
 
-from .bblocks import SaveableModel, TransformerLayer
+from .bblocks import SaveableModel, TransformerLayer, RotaryEmbeddingTrainable
 
 T = TypeVar("T", bound=Tuple[int, ...])
 
@@ -49,9 +50,11 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
         heads: int = 4,
         attention_mode: Literal["all", "causal", "same", "random"] = "all",
         use_level_embed: bool = True,
-        use_rotary_embed: bool = True,
+        rotary_mode: Literal["none", "fixed", "shared", "per_layer"] = "per_layer",
+        rotary_base: int = 10000,
         input_space: Literal["real", "dct"] = "real",
         dropout: float = 0.0,
+        use_rotary_embed: Optional[bool] = None,
     ):
         """Initialize a multi-level Vision Transformer encoder.
 
@@ -64,14 +67,27 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
             heads: Number of attention heads
             attention_mode: Type of attention masking
             use_level_embed: Whether to use level embeddings
-            use_rotary_embed: Whether to use rotary embeddings
+            rotary_mode: Type of rotary embeddings (none/fixed/shared/per_layer)
+            rotary_base: Base for rotary embeddings
+            input_space: Input space (real/dct)
+            dropout: Dropout probability
+            use_rotary_embed: Deprecated, use rotary_mode instead
         """
         super().__init__()
+
+        if use_rotary_embed is not None:
+            import warnings
+            warnings.warn(
+                "use_rotary_embed is deprecated, use rotary_mode instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            rotary_mode = "per_layer" if use_rotary_embed else "none"
+
         self.levels = levels
         self.patch_size = (
             patch_size if isinstance(patch_size, tuple) else (patch_size,) * self.ndim
         )
-        self.use_rotary_embed = use_rotary_embed
         self.dim = dim
         self.attention_mode = attention_mode
         self.in_channels = in_channels
@@ -85,7 +101,8 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
             heads=heads,
             attention_mode=attention_mode,
             use_level_embed=use_level_embed,
-            use_rotary_embed=use_rotary_embed,
+            rotary_mode=rotary_mode,
+            rotary_base=rotary_base,
             dropout=dropout,
             input_space=input_space,
             ndim=self.ndim,
@@ -105,12 +122,37 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
         else:
             self.level_embed = None
 
+        shared_rope = None
+        per_layer_rotary_dim = None
+
+        if rotary_mode != "none":
+            dims = [dim // heads // self.ndim] * (self.ndim - 1)
+            dims = [2 * (d // 2) for d in dims]
+            dims = [dim // heads - sum(dims)] + dims
+            assert min(dims) > 8, "Rotary embedding dimension must be greater than 8"
+
+            if rotary_mode == "fixed":
+                shared_rope = nn.ModuleList([
+                    RotaryEmbedding(dim=d, base=rotary_base) for d in dims
+                ])
+            elif rotary_mode == "shared":
+                shared_rope = nn.ModuleList([
+                    RotaryEmbeddingTrainable(dim=d, base=rotary_base) for d in dims
+                ])
+            elif rotary_mode == "per_layer":
+                per_layer_rotary_dim = self.ndim
+
+        if shared_rope is not None:
+            self.rotary_pos_embs = shared_rope
+
         self.layers = nn.ModuleList(
             [
                 TransformerLayer(
                     dim=dim,
                     heads=heads,
-                    rotary_dim=self.ndim if use_rotary_embed else None,
+                    rotary_dim=per_layer_rotary_dim,
+                    rotary_pos_embs=shared_rope,
+                    rotary_base=rotary_base,
                     dropout=dropout,
                 )
                 for _ in range(num_layers)

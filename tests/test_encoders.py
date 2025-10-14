@@ -141,6 +141,78 @@ def test_encoder_io(ndim: int):
     assert all((p1==p2).all() for p1, p2 in zip(encoder.parameters(), loaded_encoder.parameters()))
 
 
+@pytest.mark.parametrize("rotary_mode", ["none", "fixed", "shared", "per_layer"])
+def test_rotary_modes_2d(rotary_mode):
+    encoder = MuViTEncoder2d(
+        in_channels=1,
+        levels=(1.0, 4.0),
+        patch_size=(4, 4),
+        num_layers=3,
+        dim=64,
+        heads=2,
+        rotary_mode=rotary_mode,
+    )
+    B, L, C, H, W = 2, 2, 1, 32, 32
+    inp = torch.randn((B, L, C, H, W))
+    with torch.inference_mode():
+        out, coords, level_idx = encoder(inp)
+    assert out.shape == (B, L * (H // 4) * (W // 4), 64)
+
+    rope_params = sum(p.numel() for n, p in encoder.named_parameters() if 'rotary_pos_emb' in n)
+    if rotary_mode == "none":
+        assert rope_params == 0
+    elif rotary_mode == "fixed":
+        assert rope_params == 0
+    elif rotary_mode == "shared":
+        assert rope_params == 16
+    elif rotary_mode == "per_layer":
+        assert rope_params == 48
+
+
+@pytest.mark.parametrize("rotary_mode", ["none", "fixed", "shared", "per_layer"])
+def test_rotary_sharing_2d(rotary_mode):
+    encoder = MuViTEncoder2d(
+        in_channels=1,
+        levels=(1.0, 4.0),
+        patch_size=(4, 4),
+        num_layers=3,
+        dim=64,
+        heads=2,
+        rotary_mode=rotary_mode,
+    )
+
+    if rotary_mode in ["fixed", "shared"]:
+        assert id(encoder.layers[0].rotary_pos_embs) == id(encoder.layers[1].rotary_pos_embs)
+        assert id(encoder.layers[1].rotary_pos_embs) == id(encoder.layers[2].rotary_pos_embs)
+    elif rotary_mode == "per_layer":
+        assert id(encoder.layers[0].rotary_pos_embs) != id(encoder.layers[1].rotary_pos_embs)
+        assert id(encoder.layers[1].rotary_pos_embs) != id(encoder.layers[2].rotary_pos_embs)
+
+
+def test_backward_compat_use_rotary_embed():
+    encoder = MuViTEncoder2d(
+        in_channels=1,
+        levels=(1.0, 4.0),
+        patch_size=(4, 4),
+        num_layers=3,
+        dim=64,
+        heads=2,
+        use_rotary_embed=True,
+    )
+    assert encoder._config["rotary_mode"] == "per_layer"
+
+    encoder = MuViTEncoder2d(
+        in_channels=1,
+        levels=(1.0, 4.0),
+        patch_size=(4, 4),
+        num_layers=3,
+        dim=64,
+        heads=2,
+        use_rotary_embed=False,
+    )
+    assert encoder._config["rotary_mode"] == "none"
+
+
 if __name__ == "__main__":
     test_encoder_4d()
     print("4d fwd ok")

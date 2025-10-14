@@ -32,17 +32,19 @@ class TransformerLayer(nn.Module):
         dim: int,
         rotary_dim: Optional[int],
         heads: int = 4,
-        rotary_base: int = 512,
+        rotary_base: int = 10000,
         dropout: float = 0.0,
+        rotary_pos_embs: Optional[nn.ModuleList] = None,
     ):
         """Initialize a transformer layer with attention and feed-forward components.
-           Option for rotary positional embeddings.
 
         Args:
             dim: Dimension of input/output tensors
             heads: Number of attention heads
             rotary_dim: Dimension for rotary embeddings, or None to disable
+            rotary_base: Base for rotary embeddings
             dropout: Dropout probability for attention and feed-forward layers
+            rotary_pos_embs: Optional pre-created rotary embeddings to share across layers
         """
         super().__init__()
         self.attn = Attention(
@@ -52,7 +54,9 @@ class TransformerLayer(nn.Module):
         self.norm2 = nn.LayerNorm(dim)
         self.ff = FeedForward(dim, dim, mult=2, dropout=dropout)
 
-        if rotary_dim is not None:
+        if rotary_pos_embs is not None:
+            self.rotary_pos_embs = rotary_pos_embs
+        elif rotary_dim is not None:
             dims = [dim // heads // rotary_dim] * (rotary_dim - 1)
             dims = [2 * (d // 2) for d in dims]
             dims = [dim // heads - sum(dims)] + dims
@@ -195,6 +199,12 @@ class SaveableModel(nn.Module, ABC):
                 raise ValueError(f"Expected ndim={cls.ndim}, but got {config['ndim']}. Are you sure you're instantiating the correct class?")
         if "ndim" in config:
             config.pop("ndim", None)
+
+        # Backward compatibility: convert old use_rotary_embed to rotary_mode
+        if "use_rotary_embed" in config and "rotary_mode" not in config:
+            config["rotary_mode"] = "per_layer" if config["use_rotary_embed"] else "none"
+            config.pop("use_rotary_embed")
+
         model = cls(**config).to(device)
         model.load_state_dict(torch.load(path / "model.pth", map_location=device))
         return model
