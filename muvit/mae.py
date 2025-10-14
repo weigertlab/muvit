@@ -52,7 +52,6 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
         masking_mode: Literal["dirichlet", "random"] | tuple[float] = "dirichlet",
         input_space: Literal["real", "dct"] = "real",
         dropout: float = 0.0,
-        use_rotary_embed: Optional[bool] = None,
     ):
         """Initialize a Masked Autoencoder with multi-level Vision Transformer.
 
@@ -74,18 +73,8 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
             attention_mode: Type of attention masking
             masking_mode: Type of masking ('dirichlet', 'random' or tuple of probabilities)
             dropout: Dropout probability for transformer layers
-            use_rotary_embed: Deprecated, use rotary_mode instead
         """
         super().__init__()
-
-        if use_rotary_embed is not None:
-            import warnings
-            warnings.warn(
-                "use_rotary_embed is deprecated, use rotary_mode instead",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            rotary_mode = "per_layer" if use_rotary_embed else "none"
 
         if dim_decoder is None:
             dim_decoder = dim

@@ -26,6 +26,15 @@ class RotaryEmbeddingTrainable(RotaryEmbedding):
         self.inv_freq = nn.Parameter(self.inv_freq)
 
 
+def _split_rope_dims(dim: int, heads: int, ndim: int) -> list[int]:
+    """Split head dimension for multi-dimensional RoPE embeddings."""
+    dims = [dim // heads // ndim] * (ndim - 1)
+    dims = [2 * (d // 2) for d in dims]  # Ensure even
+    dims = [dim // heads - sum(dims)] + dims  # Residual in first dim
+    assert min(dims) > 8, f"RoPE dimension too small: min={min(dims)}, need >8"
+    return dims
+
+
 class TransformerLayer(nn.Module):
     def __init__(
         self,
@@ -201,7 +210,12 @@ class SaveableModel(nn.Module, ABC):
             config.pop("ndim", None)
 
         # Backward compatibility: convert old use_rotary_embed to rotary_mode
-        if "use_rotary_embed" in config and "rotary_mode" not in config:
+        if "use_rotary_embed" in config:
+            if "rotary_mode" in config:
+                raise ValueError(
+                    "Config contains both 'use_rotary_embed' (deprecated) and 'rotary_mode'. "
+                    "Please use only 'rotary_mode'."
+                )
             config["rotary_mode"] = "per_layer" if config["use_rotary_embed"] else "none"
             config.pop("use_rotary_embed")
 

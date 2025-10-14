@@ -23,7 +23,7 @@ def test_encoder_2d():
         heads=2,
         attention_mode="all",
         use_level_embed=True,
-        use_rotary_embed=True,
+        rotary_mode="per_layer",
         input_space="real",
         dropout=0.0,
     )
@@ -54,7 +54,7 @@ def test_encoder_3d():
         heads=2,
         attention_mode="all",
         use_level_embed=True,
-        use_rotary_embed=True,
+        rotary_mode="per_layer",
         input_space="real",
         dropout=0.0,
     )
@@ -86,7 +86,7 @@ def test_encoder_4d():
         heads=2,
         attention_mode="all",
         use_level_embed=True,
-        use_rotary_embed=True,
+        rotary_mode="per_layer",
         input_space="real",
         dropout=0.0,
     )
@@ -125,7 +125,7 @@ def test_encoder_io(ndim: int):
         heads=2,
         attention_mode="all",
         use_level_embed=True,
-        use_rotary_embed=True,
+        rotary_mode="per_layer",
         input_space="real",
         dropout=0.0,
     )
@@ -190,27 +190,70 @@ def test_rotary_sharing_2d(rotary_mode):
 
 
 def test_backward_compat_use_rotary_embed():
-    encoder = MuViTEncoder2d(
+    """Test that old saved models with use_rotary_embed can still be loaded."""
+    # Test use_rotary_embed=True -> rotary_mode=per_layer
+    encoder_true = MuViTEncoder2d(
         in_channels=1,
         levels=(1.0, 4.0),
         patch_size=(4, 4),
         num_layers=3,
         dim=64,
         heads=2,
-        use_rotary_embed=True,
+        rotary_mode="per_layer",
     )
-    assert encoder._config["rotary_mode"] == "per_layer"
 
-    encoder = MuViTEncoder2d(
+    with TemporaryDirectory() as tmpdir:
+        save_path = Path(tmpdir) / "model_true"
+        encoder_true.save(save_path)
+
+        # Manually modify config to use old use_rotary_embed parameter
+        import yaml
+        config_path = save_path / "config.yaml"
+        with open(config_path, "r") as f:
+            config = yaml.load(f, Loader=yaml.FullLoader)
+
+        # Replace rotary_mode with use_rotary_embed
+        config["use_rotary_embed"] = True
+        config.pop("rotary_mode")
+
+        with open(config_path, "w") as f:
+            yaml.dump(config, f)
+
+        # Test that loading converts use_rotary_embed to rotary_mode
+        loaded_encoder = MuViTEncoder2d.from_folder(save_path)
+        assert loaded_encoder._config["rotary_mode"] == "per_layer"
+        assert "use_rotary_embed" not in loaded_encoder._config
+
+    # Test use_rotary_embed=False -> rotary_mode=none
+    encoder_false = MuViTEncoder2d(
         in_channels=1,
         levels=(1.0, 4.0),
         patch_size=(4, 4),
         num_layers=3,
         dim=64,
         heads=2,
-        use_rotary_embed=False,
+        rotary_mode="none",
     )
-    assert encoder._config["rotary_mode"] == "none"
+
+    with TemporaryDirectory() as tmpdir:
+        save_path = Path(tmpdir) / "model_false"
+        encoder_false.save(save_path)
+
+        import yaml
+        config_path = save_path / "config.yaml"
+        with open(config_path, "r") as f:
+            config = yaml.load(f, Loader=yaml.FullLoader)
+
+        # Replace rotary_mode with use_rotary_embed
+        config["use_rotary_embed"] = False
+        config.pop("rotary_mode")
+
+        with open(config_path, "w") as f:
+            yaml.dump(config, f)
+
+        loaded_encoder = MuViTEncoder2d.from_folder(save_path)
+        assert loaded_encoder._config["rotary_mode"] == "none"
+        assert "use_rotary_embed" not in loaded_encoder._config
 
 
 if __name__ == "__main__":

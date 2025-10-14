@@ -8,7 +8,7 @@ from einops import rearrange
 from torch import Tensor, nn
 from x_transformers.x_transformers import RotaryEmbedding
 
-from .bblocks import SaveableModel, TransformerLayer, RotaryEmbeddingTrainable
+from .bblocks import SaveableModel, TransformerLayer, RotaryEmbeddingTrainable, _split_rope_dims
 
 T = TypeVar("T", bound=Tuple[int, ...])
 
@@ -54,7 +54,6 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
         rotary_base: int = 10000,
         input_space: Literal["real", "dct"] = "real",
         dropout: float = 0.0,
-        use_rotary_embed: Optional[bool] = None,
     ):
         """Initialize a multi-level Vision Transformer encoder.
 
@@ -71,18 +70,8 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
             rotary_base: Base for rotary embeddings
             input_space: Input space (real/dct)
             dropout: Dropout probability
-            use_rotary_embed: Deprecated, use rotary_mode instead
         """
         super().__init__()
-
-        if use_rotary_embed is not None:
-            import warnings
-            warnings.warn(
-                "use_rotary_embed is deprecated, use rotary_mode instead",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            rotary_mode = "per_layer" if use_rotary_embed else "none"
 
         self.levels = levels
         self.patch_size = (
@@ -125,22 +114,25 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
         shared_rope = None
         per_layer_rotary_dim = None
 
-        if rotary_mode != "none":
-            dims = [dim // heads // self.ndim] * (self.ndim - 1)
-            dims = [2 * (d // 2) for d in dims]
-            dims = [dim // heads - sum(dims)] + dims
-            assert min(dims) > 8, "Rotary embedding dimension must be greater than 8"
+        dims = _split_rope_dims(dim, heads, self.ndim)
 
-            if rotary_mode == "fixed":
-                shared_rope = nn.ModuleList([
-                    RotaryEmbedding(dim=d, base=rotary_base) for d in dims
-                ])
-            elif rotary_mode == "shared":
-                shared_rope = nn.ModuleList([
-                    RotaryEmbeddingTrainable(dim=d, base=rotary_base) for d in dims
-                ])
-            elif rotary_mode == "per_layer":
-                per_layer_rotary_dim = self.ndim
+        if rotary_mode == "none":
+            pass
+        elif rotary_mode == "fixed":
+            shared_rope = nn.ModuleList([
+                RotaryEmbedding(dim=d, base=rotary_base) for d in dims
+            ])
+        elif rotary_mode == "shared":
+            shared_rope = nn.ModuleList([
+                RotaryEmbeddingTrainable(dim=d, base=rotary_base) for d in dims
+            ])
+        elif rotary_mode == "per_layer":
+            per_layer_rotary_dim = self.ndim
+        else:
+            raise ValueError(
+                f"Invalid rotary_mode: '{rotary_mode}'. "
+                f"Must be one of: 'none', 'fixed', 'shared', 'per_layer'"
+            )
 
         if shared_rope is not None:
             self.rotary_pos_embs = shared_rope
