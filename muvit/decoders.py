@@ -19,6 +19,7 @@ class MuViTDecoder(SaveableModel, ABC, Generic[T]):
         rotary_mode: Literal["none", "fixed", "shared", "per_layer"] = "per_layer",
         rotary_base: int = 10000,
         dropout: float = 0.0,
+        attention_mode: Literal["all", "causal", "same", "random"] = "all",
     ):
         """Initialize a Vision Transformer decoder.
 
@@ -77,6 +78,7 @@ class MuViTDecoder(SaveableModel, ABC, Generic[T]):
             ]
         )
         self.dim = dim
+        self.attention_mode = attention_mode
 
     def forward(
         self,
@@ -105,10 +107,10 @@ class MuViTDecoder(SaveableModel, ABC, Generic[T]):
             # use cross attention for first layer
             if i == 0:
                 x = layer(
-                    x, coords=coords, context=context, context_coords=context_coords
+                    x, coords=coords, context=context, context_coords=context_coords, attention_mode=self.attention_mode
                 )
             else:
-                x = layer(x, coords=coords)
+                x = layer(x, coords=coords, attention_mode=self.attention_mode)
         return x
     
     @classmethod

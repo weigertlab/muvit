@@ -122,7 +122,17 @@ class MuViTDataset(Dataset, ABC, metaclass=SanityCheckMeta):
 
         if "label" in _item and _item["label"] is not None:
             label = _item["label"].cpu().numpy()
+            
+            if self.ndim == 3 and view == "yx":
+                label = label[..., label.shape[-3] // 2, :, :]
+            elif self.ndim == 3 and view == "zx":
+                label = label[..., label.shape[-2] // 2, :]
+            elif self.ndim == 3 and view == "zy":
+                label = label[..., label.shape[-1] // 2]
+
             label_cp = np.zeros((label.shape[0], 3, label.shape[1], label.shape[2]))
+
+
 
             if continuous_label_cmap is None:
                 for s in range(label.shape[0]):
