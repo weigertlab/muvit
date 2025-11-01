@@ -256,6 +256,114 @@ def test_backward_compat_use_rotary_embed():
         assert "use_rotary_embed" not in loaded_encoder._config
 
 
+def test_extract_levels():
+    """Test extracting subset of levels from encoder."""
+    encoder = MuViTEncoder2d(
+        in_channels=1,
+        levels=(1.0, 2.0, 4.0),
+        patch_size=(4, 4),
+        num_layers=3,
+        dim=64,
+        heads=2,
+        rotary_mode="per_layer",
+        use_level_embed=True,
+    )
+
+    # Extract first two levels
+    encoder_12 = encoder.extract_levels((1.0, 2.0))
+    assert encoder_12.levels == (1.0, 2.0)
+    assert len(encoder_12.proj) == 2
+    assert encoder_12.level_embed.shape[0] == 2
+    assert encoder_12._config["levels"] == (1.0, 2.0)
+
+    # Extract single level
+    encoder_1 = encoder.extract_levels((1.0,))
+    assert encoder_1.levels == (1.0,)
+    assert len(encoder_1.proj) == 1
+    assert encoder_1.level_embed.shape[0] == 1
+
+    # Extract in different order
+    encoder_21 = encoder.extract_levels((2.0, 1.0))
+    assert encoder_21.levels == (2.0, 1.0)
+
+    # Test forward pass works
+    x = torch.randn(2, 2, 1, 32, 32)
+    out, coords, level_idx = encoder_12(x)
+    assert out.shape[0] == 2
+    assert out.shape[2] == 64
+
+
+def test_extract_levels_validation():
+    """Test that invalid levels raise errors."""
+    encoder = MuViTEncoder2d(
+        in_channels=1,
+        levels=(1.0, 2.0, 4.0),
+        patch_size=(4, 4),
+        num_layers=3,
+        dim=64,
+        heads=2,
+    )
+
+    # Invalid level should raise error
+    with pytest.raises(ValueError, match="Level 3.0 not found"):
+        encoder.extract_levels((1.0, 3.0))
+
+
+def test_extract_levels_copy():
+    """Test copy=False behavior."""
+    encoder = MuViTEncoder2d(
+        in_channels=1,
+        levels=(1.0, 2.0, 4.0),
+        patch_size=(4, 4),
+        num_layers=3,
+        dim=64,
+        heads=2,
+    )
+
+    # With copy=False and same levels, should return self
+    encoder_same = encoder.extract_levels((1.0, 2.0, 4.0), copy=False)
+    assert encoder_same is encoder
+
+    # With copy=True (default), should return new object
+    encoder_copy = encoder.extract_levels((1.0, 2.0, 4.0))
+    assert encoder_copy is not encoder
+    assert encoder_copy.levels == encoder.levels
+
+
+def test_extract_levels_save_reload(tmp_path):
+    """Test that extracted encoder can be saved and reloaded."""
+    encoder = MuViTEncoder2d(
+        in_channels=1,
+        levels=(1.0, 2.0, 4.0),
+        patch_size=(4, 4),
+        num_layers=3,
+        dim=64,
+        heads=2,
+        rotary_mode="per_layer",
+        use_level_embed=True,
+    )
+
+    # Extract subset of levels
+    encoder_12 = encoder.extract_levels((1.0, 2.0))
+
+    # Save extracted encoder
+    save_path = tmp_path / "encoder_12"
+    encoder_12.save(save_path)
+
+    # Reload and verify
+    loaded = MuViTEncoder2d.from_folder(save_path)
+    assert loaded.levels == (1.0, 2.0)
+    assert len(loaded.proj) == 2
+    assert loaded.level_embed.shape[0] == 2
+    assert loaded._config["levels"] == (1.0, 2.0)
+
+    # Verify forward pass works
+    x = torch.randn(2, 2, 1, 32, 32)
+    out_original, _, _ = encoder_12(x)
+    out_loaded, _, _ = loaded(x)
+    assert torch.allclose(out_original, out_loaded, atol=1e-6)
+
+
 if __name__ == "__main__":
     test_encoder_4d()
     print("4d fwd ok")

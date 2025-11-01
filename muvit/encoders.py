@@ -314,6 +314,59 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
         else:
             return x, coords, level_idx
 
+    def extract_levels(
+        self, levels: tuple[float, ...], copy: bool = True
+    ) -> "MuViTEncoder":
+        """Extract subset of levels from this encoder.
+
+        Args:
+            levels: Level scales to keep (must be subset of self.levels)
+            copy: If False and levels match self.levels, return self without copying
+
+        Returns:
+            Encoder with specified levels (new object unless copy=False and levels unchanged)
+        """
+        # Check if no-op
+        if not copy and tuple(levels) == self.levels:
+            return self
+
+        # Validate requested levels exist
+        for level in levels:
+            if level not in self.levels:
+                raise ValueError(
+                    f"Level {level} not found in encoder. "
+                    f"Available levels: {self.levels}"
+                )
+
+        # Map requested levels to indices
+        level_indices = tuple(self.levels.index(level) for level in levels)
+
+        # Create new config with filtered levels
+        new_config = self._config.copy()
+        new_config["levels"] = levels
+        # Remove ndim as it's a class property, not a constructor parameter
+        new_config.pop("ndim", None)
+
+        # Create new encoder
+        new_encoder = type(self)(**new_config)
+
+        # Copy weights for selected levels
+        for new_idx, old_idx in enumerate(level_indices):
+            new_encoder.proj[new_idx].load_state_dict(
+                self.proj[old_idx].state_dict()
+            )
+            if self.level_embed is not None:
+                new_encoder.level_embed.data[new_idx] = self.level_embed.data[old_idx]
+
+        # Copy shared components
+        new_encoder.layers.load_state_dict(self.layers.state_dict())
+        if hasattr(self, "rotary_pos_embs"):
+            new_encoder.rotary_pos_embs.load_state_dict(
+                self.rotary_pos_embs.state_dict()
+            )
+
+        return new_encoder
+
 
 class MuViTEncoder2d(MuViTEncoder[Tuple[int, int]]):
     @classmethod
