@@ -35,6 +35,14 @@ def _split_rope_dims(dim: int, heads: int, ndim: int) -> list[int]:
     return dims
 
 
+def compute_rotary_emb(coords: Tensor, rotary_embs: nn.ModuleList) -> tuple[Tensor, Tensor]:
+    """Compute rotary embeddings from coordinates."""
+    freqs, scales = zip(*[r(coords[..., i]) for i, r in enumerate(rotary_embs)])
+    freqs = torch.cat(freqs, dim=-1).contiguous()
+    scales = scales[0]
+    return freqs, scales
+
+
 class TransformerLayer(nn.Module):
     def __init__(
         self,
@@ -108,23 +116,12 @@ class TransformerLayer(nn.Module):
         rotary_pos_emb = None
         if coords is not None and self.rotary_pos_embs is not None:
             assert coords.shape[:2] == x.shape[:2]
-            freqs, scales = zip(
-                *[r(coords[..., i]) for i, r in enumerate(self.rotary_pos_embs)]
-            )
-            freqs = torch.cat(freqs, dim=-1).contiguous()
-            scales = scales[0]
-            rotary_pos_emb = freqs, scales
+            rotary_pos_emb = compute_rotary_emb(coords, self.rotary_pos_embs)
 
+        context_rotary_pos_emb = None
         if context_coords is not None and self.rotary_pos_embs is not None:
             assert context_coords.shape[:2] == context.shape[:2]
-            freqs, scales = zip(
-                *[r(context_coords[..., i]) for i, r in enumerate(self.rotary_pos_embs)]
-            )
-            freqs = torch.cat(freqs, dim=-1).contiguous()
-            scales = scales[0]
-            context_rotary_pos_emb = freqs, scales
-        else:
-            context_rotary_pos_emb = None
+            context_rotary_pos_emb = compute_rotary_emb(context_coords, self.rotary_pos_embs)
 
         if context is not None:
             assert context.shape[0] == B
@@ -161,6 +158,175 @@ class TransformerLayer(nn.Module):
             context_rotary_pos_emb=context_rotary_pos_emb,
         )
         x = x + self.ff(self.norm2(x))
+        return x
+
+
+class TransformerDecoderLayer(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        heads: int = 4,
+        rotary_dim: Optional[int] = None,
+        rotary_dim_context: Optional[int] = None,
+        rotary_base: int = 10000,
+        dropout: float = 0.0,
+        ff_mult: int = 4,
+        with_cross_attn: bool = True,
+        rotary_pos_embs: Optional[nn.ModuleList] = None,
+        rotary_pos_embs_context: Optional[nn.ModuleList] = None,
+    ):
+        """Transformer decoder layer with self-attention, cross-attention, and feed-forward.
+
+        Args:
+            dim: Feature dimension
+            heads: Number of attention heads
+            rotary_dim: RoPE dimensionality for queries (None to disable)
+            rotary_dim_context: RoPE dimensionality for context keys (None to disable)
+            rotary_base: Base for RoPE
+            dropout: Dropout rate
+            ff_mult: Feedforward expansion factor (default 4 to match classical transformers)
+            with_cross_attn: Whether to include cross-attention layer
+            rotary_pos_embs: Pre-created RoPE modules for queries (shared across layers)
+            rotary_pos_embs_context: Pre-created RoPE modules for context (shared across layers)
+        """
+        super().__init__()
+
+        self.with_cross_attn = with_cross_attn
+
+        # Self-attention
+        self.self_attn = Attention(
+            dim=dim, heads=heads, dim_head=dim // heads, flash=True, dropout=dropout
+        )
+        self.norm1 = nn.LayerNorm(dim)
+
+        # Cross-attention (optional)
+        if with_cross_attn:
+            self.cross_attn = Attention(
+                dim=dim, heads=heads, dim_head=dim // heads, flash=True, dropout=dropout
+            )
+            self.norm2 = nn.LayerNorm(dim)
+            self.norm3 = nn.LayerNorm(dim)
+        else:
+            self.norm2 = nn.LayerNorm(dim)
+
+        # Feed-forward
+        self.ff = FeedForward(dim, dim, mult=ff_mult, dropout=dropout)
+
+        # Rotary embeddings for QUERIES
+        if rotary_pos_embs is not None:
+            self.rotary_pos_embs = rotary_pos_embs
+        elif rotary_dim is not None:
+            dims = _split_rope_dims(dim, heads, rotary_dim)
+            self.rotary_pos_embs = nn.ModuleList(
+                [RotaryEmbeddingTrainable(dim=d, base=rotary_base) for d in dims]
+            )
+        else:
+            self.rotary_pos_embs = None
+
+        # Rotary embeddings for CONTEXT KEYS
+        if rotary_pos_embs_context is not None:
+            self.rotary_pos_embs_context = rotary_pos_embs_context
+        elif rotary_dim_context is not None:
+            dims_context = _split_rope_dims(dim, heads, rotary_dim_context)
+            self.rotary_pos_embs_context = nn.ModuleList(
+                [RotaryEmbeddingTrainable(dim=d, base=rotary_base) for d in dims_context]
+            )
+        else:
+            self.rotary_pos_embs_context = None
+
+    def forward(
+        self,
+        x: Tensor,
+        context: Optional[Tensor] = None,
+        coords: Optional[Tensor] = None,
+        context_coords: Optional[Tensor] = None,
+        level_idx: Optional[Tensor] = None,
+        context_level_idx: Optional[Tensor] = None,
+        attention_mode: Literal["all", "causal", "same", "random"] = "all",
+    ):
+        """Apply decoder layer: self-attention -> cross-attention -> feed-forward.
+
+        Args:
+            x: Queries (B, N, D)
+            context: Context for cross-attention (B, M, D), None to skip cross-attention
+            coords: Coordinates for query RoPE (B, N, ndim)
+            context_coords: Coordinates for context key RoPE (B, M, ndim)
+            level_idx: Level indices for queries
+            context_level_idx: Level indices for context
+            attention_mode: Attention masking mode
+
+        Returns:
+            Transformed tensor of same shape as input
+        """
+        B, N, D = x.shape
+
+        # === SELF-ATTENTION ===
+
+        # Compute RoPE for queries
+        query_rotary_emb = None
+        if coords is not None and self.rotary_pos_embs is not None:
+            assert coords.shape[:2] == x.shape[:2]
+            query_rotary_emb = compute_rotary_emb(coords, self.rotary_pos_embs)
+
+        # Self-attention mask
+        self_attn_mask = None
+        if level_idx is not None:
+            if attention_mode == "all":
+                self_attn_mask = None
+            elif attention_mode == "causal":
+                self_attn_mask = level_idx.view(B, 1, N, 1) >= level_idx.view(B, 1, 1, N)
+            elif attention_mode == "same":
+                self_attn_mask = level_idx.view(B, 1, N, 1) == level_idx.view(B, 1, 1, N)
+            elif attention_mode == "random":
+                self_attn_mask = torch.argsort(torch.rand(N, N, device=x.device), dim=1) == 0
+            else:
+                raise ValueError(f"Invalid attention mode: {attention_mode}")
+
+        # Apply self-attention
+        x = x + self.self_attn(
+            self.norm1(x),
+            attn_mask=self_attn_mask,
+            rotary_pos_emb=query_rotary_emb,
+        )
+
+        # === CROSS-ATTENTION (if enabled and context provided) ===
+
+        if self.with_cross_attn and context is not None:
+            M = context.shape[1]
+            assert context.shape[0] == B and context.shape[2] == D
+
+            # Compute RoPE for context keys
+            context_rotary_emb = None
+            if context_coords is not None and self.rotary_pos_embs_context is not None:
+                assert context_coords.shape[:2] == context.shape[:2]
+                context_rotary_emb = compute_rotary_emb(
+                    context_coords, self.rotary_pos_embs_context
+                )
+
+            # Cross-attention mask
+            cross_attn_mask = None
+            if level_idx is not None and context_level_idx is not None:
+                if attention_mode == "all":
+                    cross_attn_mask = None
+                elif attention_mode == "causal":
+                    cross_attn_mask = level_idx.view(B, 1, N, 1) >= context_level_idx.view(B, 1, 1, M)
+                elif attention_mode == "same":
+                    cross_attn_mask = level_idx.view(B, 1, N, 1) == context_level_idx.view(B, 1, 1, M)
+
+            # Apply cross-attention
+            x = x + self.cross_attn(
+                self.norm2(x),
+                context=context,
+                attn_mask=cross_attn_mask,
+                rotary_pos_emb=None,  # Queries don't get RoPE in cross-attention
+                context_rotary_pos_emb=context_rotary_emb,
+            )
+
+            x = x + self.ff(self.norm3(x))
+        else:
+            # No cross-attention, just feed-forward
+            x = x + self.ff(self.norm2(x))
+
         return x
 
 
