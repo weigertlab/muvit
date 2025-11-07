@@ -226,6 +226,8 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
         bbox: Optional[Tensor] = None,
         masking_ratio: float = 0.75,
         masking_mode: Literal["dirichlet", "random"] | tuple[float] = "dirichlet",
+        consistent_levels: bool = False,
+        generator: Optional[torch.Generator] = None,
     ):
         x, patches, coords = self.patch_embed(x, bbox)
 
@@ -262,11 +264,21 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
         else:
             raise ValueError(f"Invalid masking mode: {masking_mode}")
 
-        prob_per_block = torch.repeat_interleave(prob_weights, N_per_level)
-        idx = torch.stack(
-            [torch.multinomial(prob_per_block, N, replacement=False) for _ in range(B)],
-            dim=0,
-        )
+        if consistent_levels:
+            idx = self.consistent_level_mask_sampling(
+                B=B,
+                N=N,
+                N_per_level=N_per_level,
+                masking_ratio=masking_ratio,
+                device=x.device,
+                generator=generator,
+            )
+        else:
+            prob_per_block = torch.repeat_interleave(prob_weights, N_per_level)
+            idx = torch.stack(
+                [torch.multinomial(prob_per_block, N, replacement=False) for _ in range(B)],
+                dim=0,
+            )
 
         idx_retain, idx_mask = idx[:, :N_retained], idx[:, N_retained:]
 
@@ -283,6 +295,60 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
             )
 
         return x, coords, patches, batch_range, idx_retain, idx_mask
+
+    def consistent_level_mask_sampling(
+        self,
+        B: int,
+        N: int,
+        N_per_level: int,
+        masking_ratio: float,
+        device: torch.device,
+        generator: Optional[torch.Generator] = None,
+    ) -> Tensor:
+        """
+        Deterministically sample retained/masked indices per level.
+
+        The selection for level l depends only on (generator, batch_idx, level)
+        so that runs with different sets of levels will produce identical masks
+        for common levels when using the same generator at the same status.
+
+        Make sure no shuffling of data happens between different runs and that the 
+        order of calls is preserved.
+        """
+
+        L = N // N_per_level
+        
+        base_seed = int(torch.randint(0, 2**31 - 1, (1,), generator=generator).item())
+
+        retained_per_level = max(1, int(round(N_per_level * (1.0 - masking_ratio))))
+
+        all_idx = []
+        for b in range(B):
+            retained_globals = []
+            for i_lvl in range(L):
+                gen = torch.Generator(device=device)
+                level_value = self.levels[i_lvl]
+                level_hash = hash(level_value) & 0x7FFFFFFF  # always > 0
+                seed = base_seed + b * 424242 + level_hash
+                gen.manual_seed(int(seed))
+                perm = torch.randperm(N_per_level, generator=gen, device=device)
+                kept = perm[:retained_per_level] + i_lvl * N_per_level
+                retained_globals.append(kept)
+
+            retained_globals = torch.cat(retained_globals, dim=0)
+
+            mask = torch.zeros(N, dtype=torch.bool, device=device)
+            mask[retained_globals] = True
+            rest = torch.arange(N, device=device)[~mask]
+            idx_row = torch.cat([retained_globals, rest], dim=0)
+            if idx_row.numel() != N:
+                idx_row = idx_row[:N]
+                if idx_row.numel() < N:
+                    missing = torch.arange(N, device=device)[~torch.isin(torch.arange(N, device=device), idx_row)]
+                    idx_row = torch.cat([idx_row, missing], dim=0)
+            all_idx.append(idx_row)
+
+        return torch.stack(all_idx, dim=0)
 
     def forward(self, x: Tensor, bbox: Optional[Tensor] = None, return_intermediate_idxs: Optional[Tuple[int]] = None):
         """Process multi-level input through the encoder."""

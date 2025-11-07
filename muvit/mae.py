@@ -224,6 +224,8 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
         bbox: Optional[tuple[Tensor, Tensor]] = None,
         return_all: bool = False,
         eps: float = 1e-2,
+        consistent_levels: bool=False,
+        rng_generator: Optional[torch.Generator]=None,
     ):
         """Process input through the MAE model.
 
@@ -232,6 +234,8 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
             bbox: Optional bounding box coordinates
             return_all: Whether to return intermediate results
             eps: Small constant for numerical stability
+            consistent_levels: Whether to use consistent masking levels across the batch. If True, the same token locations will be masked out for different runs (assuming same RNG), otherwise different runs may have different masked tokens. Defaults to False.
+            rng_generator: Optional random number generator for reproducibility of the `consistent_levels` option.
 
         Returns:
             Dictionary containing:
@@ -245,7 +249,7 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
             - loss_per_level: Loss per level (if return_all)
         """
         y, coords, patches, batch_range, idx_retain, idx_mask = (
-            self.encoder.forward_masked(x, bbox, self.masking_ratio, self.masking_mode)
+            self.encoder.forward_masked(x, bbox, self.masking_ratio, self.masking_mode, consistent_levels, rng_generator)
         )
 
         N = patches.shape[1]
@@ -333,23 +337,30 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
             mask = torch.zeros(patches.shape, dtype=bool, device=x.device)
             mask[batch_range, idx_mask] = True
             mask = self.patch_token_to_image(mask, *x.shape[2:])
-            # loss per level
-            idx_levels = tuple(
-                torch.arange(N_per_level, device=x.device) + i * N_per_level
-                for i in range(len(self.encoder.levels))
-            )
-            loss_per_level = torch.tensor(
-                tuple(
-                    F.mse_loss(
-                        z[batch_range, idx_mask[torch.isin(idx_mask, _idx)]],
-                        patches_normed[
-                            batch_range, idx_mask[torch.isin(idx_mask, _idx)]
-                        ],
-                    )
-                    for _idx in idx_levels
-                ),
-                device=x.device,
-            )
+            
+            # loss per lv
+            B = idx_mask.shape[0]
+            loss_per_level_list = []
+            for i in range(len(self.encoder.levels)):
+                sel = (idx_mask // N_per_level) == i  # (B, M_mask)
+
+                selected_z = []
+                selected_p = []
+                for b in range(B):
+                    sel_b = sel[b]
+                    if sel_b.any():
+                        idxs = idx_mask[b, sel_b]
+                        selected_z.append(z[b, idxs])
+                        selected_p.append(patches_normed[b, idxs])
+
+                if len(selected_z) == 0:
+                    loss_per_level_list.append(torch.tensor(0.0, device=x.device))
+                else:
+                    zz = torch.cat(selected_z, dim=0)
+                    pp = torch.cat(selected_p, dim=0)
+                    loss_per_level_list.append(F.mse_loss(zz, pp))
+
+            loss_per_level = torch.stack(loss_per_level_list).to(x.device)
 
             out["encoded"] = y
             out["reco"] = reco
@@ -425,6 +436,53 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
             wrapped_model, train_dataloader, val_dataloader, ckpt_path=ckpt_path
         )
         return
+
+    def extract_levels(self, levels: tuple[float, ...], copy: bool = True) -> "MuViTMAE":
+        """Return a new MuViTMAE instance restricted to a subset of levels. Follows the same signature as MuViTEncoder.extract_levels().
+
+        Args:
+            levels: Tuple of level scales to keep (must be subset of self.encoder.levels)
+            copy: If False and levels match self.encoder.levels, return self without copying
+
+        Returns:
+            A new MuViTMAE instance with encoder/decoder restricted to ``levels``.
+        """
+        if not copy and tuple(levels) == tuple(self.encoder.levels):
+            return self
+
+        for level in levels:
+            if level not in tuple(self.encoder.levels):
+                raise ValueError(f"Requested level {level} not present in encoder levels {self.encoder.levels}")
+
+        level_indices = tuple(self.encoder.levels.index(level) for level in levels)
+
+        new_config = self._config.copy()
+        new_config["levels"] = levels
+        new_config.pop("ndim", None)
+
+        new_mae = type(self)(**new_config)
+
+        try:
+            new_mae.final.load_state_dict(self.final.state_dict())
+        except Exception:
+            print("Warning: Could not copy final projection layer weights to new MAE.")
+            pass
+
+        new_encoder = self.encoder.extract_levels(levels, copy=True)
+        new_mae.encoder = new_encoder
+       
+        if self.decoder_mode == "single":
+            new_mae.decoder.load_state_dict(self.decoder.state_dict())
+            new_mae.mask_token = nn.Parameter(self.mask_token.data.clone())
+        else:
+            for new_idx, old_idx in enumerate(level_indices):
+                new_mae.decoder[new_idx].load_state_dict(
+                    self.decoder[old_idx].state_dict()
+                )
+
+            if self.mask_token is not None:
+                new_mae.mask_token = nn.Parameter(self.mask_token.data[:, level_indices, :].clone())
+        return new_mae
    
 
 class MuViTMAE2d(MuViTMAE[Tuple[int, int]]):
