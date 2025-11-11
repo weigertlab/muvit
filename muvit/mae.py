@@ -226,6 +226,7 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
         eps: float = 1e-2,
         consistent_levels: bool=False,
         rng_generator: Optional[torch.Generator]=None,
+        masking_mode_is_ratio: bool=False,
     ):
         """Process input through the MAE model.
 
@@ -236,6 +237,7 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
             eps: Small constant for numerical stability
             consistent_levels: Whether to use consistent masking levels across the batch. If True, the same token locations will be masked out for different runs (assuming same RNG), otherwise different runs may have different masked tokens. Defaults to False.
             rng_generator: Optional random number generator for reproducibility of the `consistent_levels` option.
+            masking_mode_is_ratio: Whether the masking_mode is given as a ratio (True) denoting the explicit fraction of tokens to mask, or as a tuple of probabilities (False).
 
         Returns:
             Dictionary containing:
@@ -249,7 +251,7 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
             - loss_per_level: Loss per level (if return_all)
         """
         y, coords, patches, batch_range, idx_retain, idx_mask = (
-            self.encoder.forward_masked(x, bbox, self.masking_ratio, self.masking_mode, consistent_levels, rng_generator)
+            self.encoder.forward_masked(x, bbox, self.masking_ratio, self.masking_mode, consistent_levels, rng_generator, masking_mode_is_ratio=masking_mode_is_ratio)
         )
 
         N = patches.shape[1]

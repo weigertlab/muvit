@@ -60,7 +60,9 @@ def box_annotate(x, bbox, lines=True):
     return x
 
 
-def create_image_grid(x, output, bbox=None):
+def create_image_grid(x, output, bbox=None, lines=False, input_only=False, include_input=True, include_error=True, box_annotate_y=False, box_annotate_z=False):
+    if include_error and not include_input:
+        raise ValueError("include_error requires include_input to be True")
     # L, C, H, W
     if x.ndim == 5:
         B, L, C, H, W = x.shape
@@ -73,42 +75,61 @@ def create_image_grid(x, output, bbox=None):
         B, L, C, T, D, H, W = x.shape
     else:
         raise ValueError(f"Invalid input shape: {x.shape}")
-
-    x = x[0].detach().cpu().numpy()
+    if include_input:
+        x = x[0].detach().cpu().numpy()
     y = output["reco"][0].detach().cpu().numpy()
     z = output["input_masked"][0].detach().cpu().numpy()
 
     if T is not None and D is not None:
-        x = x[:, :, T // 2, D // 2]
+        if include_input:
+            x = x[:, :, T // 2, D // 2]
         y = y[:, :, T // 2, D // 2]
         z = z[:, :, T // 2, D // 2]
         bbox = bbox[..., 2:]
 
     elif T is None and D is not None:
-        x = x[:, :, D // 2]
+        if include_input:
+            x = x[:, :, D // 2]
         y = y[:, :, D // 2]
         z = z[:, :, D // 2]
         bbox = bbox[..., 1:]
+    if include_input and include_error:
+        err = np.abs(x - y)
 
-    err = np.abs(x - y)
 
-    if bbox is not None:
-        box_annotate(x, bbox, lines=False)
+    if bbox is not None and bbox.shape[1] == L and bbox.shape[0] == 1:
+        bbox = bbox[0] # Assume single sample, try remove batch dim
 
-    x = np.concatenate(
-        np.pad(x, ((0, 0), (0, 0), (1, 1), (1, 1)), constant_values=1), axis=-2
-    )
+    if bbox is not None and include_input:
+        box_annotate(x, bbox, lines=lines)
+
+    if bbox is not None and box_annotate_y:
+        box_annotate(y, bbox, lines=lines)
+    
+    if bbox is not None and box_annotate_z:
+        box_annotate(z, bbox, lines=lines)
+
+    if include_input:
+        x = np.concatenate(
+            np.pad(x, ((0, 0), (0, 0), (1, 1), (1, 1)), constant_values=1), axis=-2
+        )
     y = np.concatenate(
         np.pad(y, ((0, 0), (0, 0), (1, 1), (1, 1)), constant_values=1), axis=-2
     )
     z = np.concatenate(
         np.pad(z, ((0, 0), (0, 0), (1, 1), (1, 1)), constant_values=1), axis=-2
     )
-    err = np.concatenate(
-        np.pad(err, ((0, 0), (0, 0), (1, 1), (1, 1)), constant_values=1), axis=-2
-    )
-    out = np.concatenate([z, y, x, err], axis=-1)
-
+    if include_error:
+        err = np.concatenate(
+            np.pad(err, ((0, 0), (0, 0), (1, 1), (1, 1)), constant_values=1), axis=-2
+        )
+        out = np.concatenate([z, y, x, err], axis=-1)
+    elif include_input and not input_only:
+        out = np.concatenate([z, y, x], axis=-1)
+    elif input_only:
+        out = x
+    else:
+        out = np.concatenate([z, y], axis=-1)
     if out.shape[0] == 1:
         out = out[0]
     elif out.shape[0] == 2:

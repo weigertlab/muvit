@@ -228,6 +228,7 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
         masking_mode: Literal["dirichlet", "random"] | tuple[float] = "dirichlet",
         consistent_levels: bool = False,
         generator: Optional[torch.Generator] = None,
+        masking_mode_is_ratio: bool = False,
     ):
         x, patches, coords = self.patch_embed(x, bbox)
 
@@ -238,8 +239,7 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
             )
 
         N_per_level = N // len(self.levels)
-        N_retained = int(N * (1 - masking_ratio))
-
+        
         level_idx = (
             torch.arange(patches.shape[1], device=x.device)
             .unsqueeze(0)
@@ -247,38 +247,76 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
         )
         level_idx = level_idx // N_per_level
 
-        if masking_mode == "dirichlet":
-            # alpha_parameter = 1.0
-            alpha_parameter = 0.5
-            prob_weights = torch.distributions.Dirichlet(
-                torch.ones(len(self.levels), device=x.device) * alpha_parameter
-            ).sample()
-        elif masking_mode == "random":
-            prob_weights = torch.ones(len(self.levels), device=x.device)
-        elif isinstance(masking_mode, (tuple, list, np.ndarray)):
+        if masking_mode_is_ratio and isinstance(masking_mode, (tuple, list, np.ndarray)):
             if not len(masking_mode) == len(self.levels):
                 raise ValueError(
-                    f"Number of levels must match number of masking probabilities: {len(masking_mode)} != {len(self.levels)}"
+                    f"Number of levels must match number of masking ratios: {len(masking_mode)} != {len(self.levels)}"
                 )
-            prob_weights = torch.tensor(masking_mode, device=x.device)
+            
+            # explicit per-level masking ratios
+            all_indices = []
+            for b in range(B):
+                retained_indices = []
+                for level_idx_val, level_mask_ratio in enumerate(masking_mode):
+                    level_start = level_idx_val * N_per_level
+                    level_end = (level_idx_val + 1) * N_per_level
+                    level_patches = torch.arange(level_start, level_end, device=x.device)
+                    
+                    n_retain_level = int(N_per_level * (1 - level_mask_ratio))
+                    
+                    if n_retain_level > 0:
+                        perm = torch.randperm(N_per_level, device=x.device, generator=generator)
+                        retained_patches = level_patches[perm[:n_retain_level]]
+                        retained_indices.append(retained_patches)
+                
+                if retained_indices:
+                    retained_indices_cat = torch.cat(retained_indices, dim=0)
+                else:
+                    retained_indices_cat = torch.tensor([], dtype=torch.long, device=x.device)
+                
+                all_patches = torch.arange(N, device=x.device)
+                masked_indices = all_patches[~torch.isin(all_patches, retained_indices_cat)]
+                
+                batch_idx = torch.cat([retained_indices_cat, masked_indices], dim=0)
+                all_indices.append(batch_idx)
+            
+            idx = torch.stack(all_indices, dim=0)
+            N_retained = len(retained_indices_cat) if retained_indices else 0
         else:
-            raise ValueError(f"Invalid masking mode: {masking_mode}")
+            N_retained = int(N * (1 - masking_ratio))
+            
+            if masking_mode == "dirichlet":
+                # alpha_parameter = 1.0
+                alpha_parameter = 0.5
+                prob_weights = torch.distributions.Dirichlet(
+                    torch.ones(len(self.levels), device=x.device) * alpha_parameter
+                ).sample()
+            elif masking_mode == "random":
+                prob_weights = torch.ones(len(self.levels), device=x.device)
+            elif isinstance(masking_mode, (tuple, list, np.ndarray)):
+                if not len(masking_mode) == len(self.levels):
+                    raise ValueError(
+                        f"Number of levels must match number of masking probabilities: {len(masking_mode)} != {len(self.levels)}"
+                    )
+                prob_weights = torch.tensor(masking_mode, device=x.device)
+            else:
+                raise ValueError(f"Invalid masking mode: {masking_mode}")
 
-        if consistent_levels:
-            idx = self.consistent_level_mask_sampling(
-                B=B,
-                N=N,
-                N_per_level=N_per_level,
-                masking_ratio=masking_ratio,
-                device=x.device,
-                generator=generator,
-            )
-        else:
-            prob_per_block = torch.repeat_interleave(prob_weights, N_per_level)
-            idx = torch.stack(
-                [torch.multinomial(prob_per_block, N, replacement=False) for _ in range(B)],
-                dim=0,
-            )
+            if consistent_levels:
+                idx = self.consistent_level_mask_sampling(
+                    B=B,
+                    N=N,
+                    N_per_level=N_per_level,
+                    masking_ratio=masking_ratio,
+                    device=x.device,
+                    generator=generator,
+                )
+            else:
+                prob_per_block = torch.repeat_interleave(prob_weights, N_per_level)
+                idx = torch.stack(
+                    [torch.multinomial(prob_per_block, N, replacement=False) for _ in range(B)],
+                    dim=0,
+                )
 
         idx_retain, idx_mask = idx[:, :N_retained], idx[:, N_retained:]
 
