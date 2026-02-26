@@ -12,11 +12,11 @@ This repository contains the implementation of the _MuViT_ architecture, along w
 
 Modern microscopy yields gigapixel images capturing structures with hierarchical organization spanning from individual cell morphology to broad tissue architecture. A central challenge in analyzing those images is that models must trade off effective context against spatial resolution. Standard CNNs or ViTs typically operate on single-resolution crops, with hierarchical feature pyramids being built from a single view.
 
-To tackle this _MuViT_ is designed to jointly process FOVs of the same image at different physical resolutions within a unified encoder. This is achieved by jointly feeding the different scales to the model and adding consistent _world-coordinate_ RoPE, a simple yet effective mechanism which ensures that the same physical location receives the same positional encoding across scales. This enables effective cross-scale attention, and allows integrating wide-field anatomical context with high-resolution cellular detail.
+To tackle this, _MuViT_ is designed to jointly process FOVs of the same image at different physical resolutions within a unified encoder. This is achieved by jointly feeding the different scales to the model and adding consistent _world-coordinate_ RoPE, a simple yet effective mechanism which ensures that the same physical location receives the same positional encoding across scales. This enables the attention mechanism to work across different scales, allowing integration of wide-field context (_e.g._ anatomical) with high-resolution detail (_e.g._ cellular) for solving dense computer vision tasks, like segmentation.
 
-![Fig overview](assets/fig_overview.png)
+![ Fig overview](assets/fig_overview.png)
 
-Furthermore, _MuViT_ extends Masked Autoencoder (MAE) pre-training to a multi-resolution setting to learn powerful representations from unlabeled large-scale data. This produces highly informative, scale-consistent features that substantially accelerate convergence and improve sample efficiency on downstream tasks.
+Furthermore, _MuViT_ extends the Masked Autoencoder (MAE) pre-training framework to a multi-resolution setting to learn powerful representations from unlabeled large-scale data. This produces highly informative, scale-consistent features that substantially accelerate convergence and improve sample efficiency on downstream tasks.
 
 ![Fig MAE](assets/fig_mae.png)
 
@@ -35,7 +35,7 @@ pip install -e ./muvit
 
 ### Creating a _MuViT_ dataset
 
-Any training dataset you want to work on should inherit from MuViTDataset, which will run checks on things like the output format. It requires implementing the following methods and properties (check the implementation of the [`MuViTDataset` class](./muvit/data.py) for more details):
+All PyTorch datasets to be used for _MuViT_ should inherit from `muvit.data.MuViTDataset`, which will run sanity checks on _e.g._ the output format to ensure consistency. It requires implementing the following methods and properties (check the implementation of the [`MuViTDataset` class](./muvit/data.py) for more details):
 
 
 ```python
