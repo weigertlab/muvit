@@ -1,8 +1,9 @@
 # _MuViT_: Multi-Resolution Vision Transformers for Learning Across Scales in Microscopy 
 
 Official implementation of _MuViT_ (CVPR 2026), a vision transformer-based architecture designed to process gigapixel microscopy images by jointly modelling multiple scales with a single encoder.
-
-![MuViT inference video](./assets/muvit_brain.mp4)
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/e2e69c99-f0e5-455d-a308-628d2fe0d1c7" alt="MuViT segmentation inference">
+</div>
 
 This repository contains the implementation of the _MuViT_ architecture, along with the multi-resolution Masked Autoencoder (MAE) pre-training framework.
 
