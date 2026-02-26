@@ -83,7 +83,8 @@ For example:
 
 ```python
 import torch
-from muvit.data import MyMuViTDataset
+
+from muvit.data import MuViTDataset
 from muvit.mae import MuViTMAE2d
 
 class MyMuViTDataset(MuViTDataset):
@@ -92,6 +93,7 @@ class MyMuViTDataset(MuViTDataset):
 
 train_ds = MyMuViTDataset(args1)
 val_ds = MyMuViTDataset(args2)
+
 model = MuViTMAE2d(
     in_channels=train_ds.n_channels,
     levels=train_ds.levels,
