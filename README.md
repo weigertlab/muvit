@@ -25,7 +25,7 @@ Furthermore, _MuViT_ extends the Masked Autoencoder (MAE) pre-training framework
 
 Simply clone the repository, create a new Python environment (with `conda` or alike) and install the repository in editable mode:
 
-```bash
+```console
 mamba create -y -n muvit python=3.12
 git clone git@github.com:weigertlab/muvit.git
 pip install -e ./muvit
