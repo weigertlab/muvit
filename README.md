@@ -1,35 +1,39 @@
-# MuViT: MultiResolution MultiModal Transformer for large microscopy images 
+# _MuViT_: Multi-Resolution Vision Transformers for Learning Across Scales in Microscopy 
 
-**WORK IN PROGRESS - DO NOT  DISTRIBUTE**
+Official implementation of _MuViT_ (CVPR 2026), a vision transformer-based architecture designed to process gigapixel microscopy images by jointly modelling multiple scales with a single encoder.
 
-This project implements a multi-resolution Vision Transformer (MuViT) architecture designed for processing large microscopy images. The model operates on multiple resolution levels simultaneously, allowing it to capture both fine-grained details and broader context.
+![MuViT inference video](./assets/muvit_brain.mp4)
 
-![val_inout](https://github.com/user-attachments/assets/161e25b9-f234-432c-b431-74547b5056a7)
-Example on Mouse sections, left to right: masked input, reconstruction, GT, error. top row: high resolution, bottom: low resolution 
+This repository contains the implementation of the _MuViT_ architecture, along with the multi-resolution Masked Autoencoder (MAE) pre-training framework.
 
+## Overview
 
-## Refactor progress
+Modern microscopy yields gigapixel images capturing structures with hierarchical organization spanning from individual cell morphology to broad tissue architecture. A central challenge in analyzing those images is that models must trade off effective context against spatial resolution. Standard CNNs or ViTs typically operate on single-resolution crops, with hierarchical feature pyramids being built from a single view.
 
-- [x] Building blocks (RotaryEmbedding, TransformerLayer, SaveableModel)
-- [x] MuViTEncoder (2d and 3d)
-- [x] MuViTDecoder (2d and 3d)
-- [x] MuViT
-- [x] Lightning
-- [x] Dataset/dataloading utilities
-- [x] Installable package
+To tackle this _MuViT_ is designed to jointly process FOVs of the same image at different physical resolutions within a unified encoder. This is achieved by jointly feeding the different scales to the model and adding consistent _world-coordinate_ RoPE, a simple yet effective mechanism which ensures that the same physical location receives the same positional encoding across scales. This enables effective cross-scale attention, and allows integrating wide-field anatomical context with high-resolution cellular detail.
+
+![Fig overview](assets/fig_overview.png)
+
+Furthermore, _MuViT_ extends Masked Autoencoder (MAE) pre-training to a multi-resolution setting to learn powerful representations from unlabeled large-scale data. This produces highly informative, scale-consistent features that substantially accelerate convergence and improve sample efficiency on downstream tasks.
+
+![Fig MAE](assets/fig_mae.png)
+
 
 ## Installation
 
+Simply clone the repository, create a new Python environment (with `conda` or alike) and install the repository in editable mode:
+
 ```bash
-mamba create -y -n muvit python=3.11
-pip install -e .
+mamba create -y -n muvit python=3.12
+git clone git@github.com:weigertlab/muvit.git
+pip install -e ./muvit
 ```
 
-## Quickstart
+## Usage
 
-### Creating a MuViT dataset
+### Creating a _MuViT_ dataset
 
-Any training dataset should inherit from MuViTDataset, which will run checks on the format. The following should be implemented:
+Any training dataset you want to work on should inherit from MuViTDataset, which will run checks on things like the output format. It requires implementing the following methods and properties (check the implementation of the [`MuViTDataset` class](./muvit/data.py) for more details):
 
 
 ```python
@@ -37,56 +41,86 @@ from muvit.data import MuViTDataset
 
 class MyMuViTDataset(MuViTDataset):
     def __init__(self):
-        # whatever
+        pass
 
     def __len__(self) -> int:
-        # whatever
+        # number of samples in the dataset
+        return 42 # change accordingly
 
     @property
     def n_channels(self) -> int:
-        # number of channels
+        # number of channels in the input images
+        return 1 # change accordingly
 
     @property
     def levels(self) -> Tuple[int, ...]:
-        # resolution levels in sorted order
+        # return resolution levels (in ascending order)
+        return (1,8,32) # change accordingly
 
     @property
     def ndim(self) -> int:
-        # spatial dimensions, either 2 or 3
- 
+        # returns number of spatial dimensions
+        return 2 # change accordingly
+
     def __getitem__(self, idx) -> dict:
-        # should return a dict like
+        # should return a dictionary like
         return {
-            "img": img, # torch tensor of shape (L,C,(Z),Y,X)
-            "bbox": bbox, # torch tensor of shape (L,2,Nd)
+            "img": img, # torch tensor of shape (L,C,Y,X)
+            "bbox": bbox, # torch tensor of shape (L,2,Nd) where Nd is the number of spatial dimensions (e.g. 2)
         } 
 ```
 
-## MuViT Model
+#### Bounding box format
 
-The model is designed to learn hierarchical representations across multiple resolution levels while maintaining spatial relationships through bounding box coordinates.
+The `bbox` (bounding box) tensor defines the exact physical extent (field of view) of each image crop within a shared _world-coordinate_ system, which we define as the highest resolution pixel space. For a single dataset sample, it must have the shape $(L, 2, N_d)$, where $L$ is the number of resolution levels and $Nd$ is the number of spatial dimensions (e.g., 2). The second dimension, always of size 2 represents the boundaries of the crop: index 0 contains the minimum coordinates (top-left, i.e., `[y_min, x_min]`) and index 1 contains the maximum coordinates (bottom-right, i.e., `[y_max, x_max]`). Providing them as accurately as possible is crucial, as _MuViT_ relies on them to geometrically align the different resolutions.
 
+### Multiscale MAE pre-training
+
+In order to pre-train an MAE model on your created dataset, you can simply instantiate the `MuViTMAE2d` class and pass the dataloaders to its `.fit` method. Most of the parameters are customizable (_e.g._ number of layers, patch size, etc.). For more information please check the implementation of the [MuViTMAE2d class](./muvit/mae.py). We use PyTorch Lightning to handle the training logic.
+For example:
+
+```python
+import torch
+from muvit.data import MyMuViTDataset
+from muvit.mae import MuViTMAE2d
+
+class MyMuViTDataset(MuViTDataset):
+    # implement the dataset as shown above
+    pass
+
+train_ds = MyMuViTDataset(args1)
+val_ds = MyMuViTDataset(args2)
+model = MuViTMAE2d(
+    in_channels=train_ds.n_channels,
+    levels=train_ds.levels,
+    patch_size=8,
+    num_layers=12,
+    num_layers_decoder=4,
+    ... # other parameters
+)
+
+train_dl = torch.utils.data.DataLoader(train_ds, batch_size=16, shuffle=True)
+val_dl = torch.utils.data.DataLoader(val_ds, batch_size=16, shuffle=False)
+model.fit(train_dl, val_dl, output="/path/to/pretrained", num_epochs=100, ...)
+```
+
+### Using a pre-trained encoder
+After pre-training the MAE model, you can use the encoder for downstream tasks or feature extraction. To get the encoder from the MAE pre-trained model, you can simply load it using our helper function and access it via the `encoder` attribute:
+
+```python
+from muvit.mae import MuViTMAE2d
+
+encoder = MuViTMAE2d.from_folder("/path/to/pretrained").encoder
+```
+
+which returns a `MuViTEncoder` PyTorch module that is pluggable into any downstream pipeline. The encoder expects an input tensor of shape $(B,L,C,Y,X)$ (where $L$ denotes the number of resolution levels) along with the world coordinates, which are given as a "bounding-box" tensor of shape $(B,L,2,2)$ (for 2D). Note that not giving an explicit bounding box might cause undefined behaviour. The output of an encoder is a tensor of shape $(B,N,D)$ where $N$ is the number of tokens and $D$ is the embedding dimension.
+
+The method `compute_features()` of an encoder will run a forward pass on a given multi-scale tensor and corresponding bounding boxes and return the features in a spatially structured format $(B,L,D,H',W')$ where $H'=\frac{H}{P}$ and $W'=\frac{W}{P}$, with $P$ being the patch size.
+
+## Citation
+
+If you use this code for your research, please cite the following article:
+
+```
 TODO
-
-## Papers/resources
-
-    - https://www.reddit.com/r/MachineLearning/comments/1b3bhbd/d_why_is_vit_more_commonly_used_than_swin/
-    - https://medium.com/@14prakash/vitdet-the-go-to-architecture-for-image-foundation-models-3f5f44e6ac4a
-    - Tian, Rui, et al. "Resformer: Scaling vits with multi-resolution training." Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 2023.
-    - ConvNets Match Vision Transformers at Scale https://arxiv.org/abs/2310.16764
-    - https://frankzliu.com/blog/vision-transformers-are-overrated
-    - Bachman et al MultiMAE: Multi-modal Multi-task Masked Autoencoders
-    - GigaPath: https://github.com/prov-gigapath/prov-gigapath
-    - Recursion RxRx3 paper
-
-
-# Related work
-
-    - HookNet: Multi-resolution convolutional neural networks for semantic segmentation in histopathology whole-slide images https://www.sciencedirect.com/science/article/pii/S1361841520302541?ref=pdf_download&fr=RR-2&rr=90fac81f08684516
-    - Global-Local Transformer for Brain Age Estimation https://ieeexplore.ieee.org/abstract/document/9525077
-
-
-# Datasets:
-
-- histo/ocelot: https://lunit-io.github.io/research/publications/ocelot/, https://zenodo.org/records/7844149
-
+```
