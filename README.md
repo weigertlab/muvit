@@ -5,24 +5,21 @@
 # _MuViT_: Multi-Resolution Vision Transformers for Learning Across Scales in Microscopy 
 
 Official implementation of _MuViT_ (CVPR 2026), a vision transformer-based architecture designed to process gigapixel microscopy images by jointly modelling multiple scales with a single encoder.
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/42637083-fd60-45ce-a90c-892e6792d754" alt="MuViT segmentation inference">
-</div>
+
+
 
 
 This repository contains the implementation of the _MuViT_ architecture, along with the multi-resolution Masked Autoencoder (MAE) pre-training framework.
 
 ## Overview
 
+![Fig overview](assets/fig_overview.png)
+
 Modern microscopy yields gigapixel images capturing structures with hierarchical organization spanning from individual cell morphology to broad tissue architecture. A central challenge in analyzing those images is that models must trade off effective context against spatial resolution. Standard CNNs or ViTs typically operate on single-resolution crops, with hierarchical feature pyramids being built from a single view.
 
 To tackle this, _MuViT_ is designed to jointly process FOVs of the same image at different physical resolutions within a unified encoder. This is achieved by jointly feeding the different scales to the model and adding consistent _world-coordinate_ RoPE, a simple yet effective mechanism which ensures that the same physical location receives the same positional encoding across scales. This enables the attention mechanism to work across different scales, allowing integration of wide-field context (_e.g._ anatomical) with high-resolution detail (_e.g._ cellular) for solving dense computer vision tasks, like segmentation.
 
-![ Fig overview](assets/fig_overview.png)
-
 Furthermore, _MuViT_ extends the Masked Autoencoder (MAE) pre-training framework to a multi-resolution setting to learn powerful representations from unlabeled large-scale data. This produces highly informative, scale-consistent features that substantially accelerate convergence and improve sample efficiency on downstream tasks.
-
-![Fig MAE](assets/fig_mae.png)
 
 
 ## Installation
