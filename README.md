@@ -1,3 +1,4 @@
+![logo](assets/logo.png)
 # _MuViT_: Multi-Resolution Vision Transformers for Learning Across Scales in Microscopy 
 
 Official implementation of _MuViT_ (CVPR 2026), a vision transformer-based architecture designed to process gigapixel microscopy images by jointly modelling multiple scales with a single encoder.
