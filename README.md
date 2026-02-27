@@ -1,4 +1,6 @@
-<img src="assets/logo.png" alt="logo" width="300">
+<div align="center">
+  <img src="assets/logo.png" alt="logo" width="300">
+</div>
 
 # _MuViT_: Multi-Resolution Vision Transformers for Learning Across Scales in Microscopy 
 
