@@ -1,5 +1,11 @@
 <div align="center">
   <img src="assets/logo.png" alt="logo" width="300">
+
+[![PyPI](https://img.shields.io/pypi/v/muvit)](https://pypi.org/project/muvit/)
+[![Python](https://img.shields.io/pypi/pyversions/muvit)](https://pypi.org/project/muvit/)
+<!--[![Build](https://img.shields.io/github/actions/workflow/status/weigertlab/muvit/release.yml?branch=main)](https://github.com/weigertlab/muvit/actions/workflows/release.yml)-->
+<!--[![Downloads](https://static.pepy.tech/badge/muvit)](https://pepy.tech/project/muvit)-->
+<!--[![License](https://img.shields.io/github/license/weigertlab/muvit)](https://github.com/weigertlab/muvit/blob/main/LICENSE)-->
 </div>
 
 # _MuViT_: Multi-Resolution Vision Transformers for Learning Across Scales in Microscopy 
