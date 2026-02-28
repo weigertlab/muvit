@@ -423,6 +423,11 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
 
         wrapped_model = WrappedModel(self, num_epochs, output, warmup_epochs, lr, nobox, data_gen)
 
+        if torch.backends.mps.is_available() and accelerator in ("auto", "mps"):
+            log.warning(
+                "Training on MPS (Apple Silicon) is disabled due to current limitations for Dirichlet sampling in PyTorch. Will force CPU run. Note that we recommend to use a Linux machine with a CUDA-capable GPU."
+            )
+            accelerator = "cpu"
         trainer = pl.Trainer(
             max_epochs=num_epochs,
             accelerator=accelerator,

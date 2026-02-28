@@ -27,11 +27,13 @@ Furthermore, _MuViT_ extends the Masked Autoencoder (MAE) pre-training framework
 
 ## Installation
 
-The software can be easily installed using `pip`:
+The software is compatible with Python versions 3.11, 3.12 and 3.13. It can be easily installed using `pip`:
 
 ```console
 pip install muvit
 ```
+
+*Note:* _MuViT_ has been tested on Linux and MacOS systems. For MacOS, GPU-accelerated MAE pre-training is disabled due to `torch`'s lack of support for Dirichlet sampling, but the encoder can still be used with MPS for feature extraction and downstream tasks. We highly recommend pre-training on a Linux machine with a CUDA-capable GPU.
 
 ## Usage
 
