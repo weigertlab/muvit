@@ -63,7 +63,7 @@ class DummyDataset(MuViTDataset):
 
 @pytest.mark.parametrize("in_channels", [1, 3])
 @pytest.mark.parametrize("ndim", [2, 3, 4])
-def test_mae_fwd(input_space: str, in_channels: int, ndim: int):
+def test_mae_fwd(in_channels: int, ndim: int):
     if ndim not in (2, 3, 4):
         raise ValueError("ndim must be either 2, 3, or 4.")
     ActualCls = NDIM_TO_MAE_CLS[ndim]

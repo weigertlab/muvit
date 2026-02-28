@@ -9,7 +9,6 @@ def test_decoder_2d():
         dim=64,
         num_layers=3,
         heads=2,
-        use_rotary_embed=True,
         dropout=0.0,
     )
     B = 2
@@ -27,7 +26,6 @@ def test_decoder_3d():
         dim=64,
         num_layers=3,
         heads=2,
-        use_rotary_embed=True,
         dropout=0.0,
     )
     B = 2
@@ -44,7 +42,6 @@ def test_decoder_4d():
         dim=128,
         num_layers=3,
         heads=2,
-        use_rotary_embed=True,
         dropout=0.0,
     )
     B = 2
