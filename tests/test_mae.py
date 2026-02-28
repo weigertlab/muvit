@@ -61,16 +61,12 @@ class DummyDataset(MuViTDataset):
         }
 
 
-@pytest.mark.parametrize("input_space", ["real", "dct"])
 @pytest.mark.parametrize("in_channels", [1, 3])
 @pytest.mark.parametrize("ndim", [2, 3, 4])
 def test_mae_fwd(input_space: str, in_channels: int, ndim: int):
     if ndim not in (2, 3, 4):
         raise ValueError("ndim must be either 2, 3, or 4.")
     ActualCls = NDIM_TO_MAE_CLS[ndim]
-
-    if input_space == "dct" and ndim == 4:
-        return  # DCT not implemented for 4d yet
 
     model = ActualCls(
         in_channels=in_channels,
@@ -80,7 +76,6 @@ def test_mae_fwd(input_space: str, in_channels: int, ndim: int):
         masking_ratio=0.1,
         dim=320,
         dim_decoder=256,
-        input_space=input_space,
         patch_size=4,
     )
     B = 1

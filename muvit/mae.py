@@ -50,7 +50,7 @@ class MuViTMAE(SaveableModel, ABC, Generic[T]):
         rotary_base: int = 10000,
         attention_mode: Literal["all", "causal", "same", "random"] = "all",
         masking_mode: Literal["dirichlet", "random"] | tuple[float] = "dirichlet",
-        input_space: Literal["real", "dct"] = "real",
+        input_space: Literal["real"] = "real",
         dropout: float = 0.0,
     ):
         """Initialize a Masked Autoencoder with multi-level Vision Transformer.

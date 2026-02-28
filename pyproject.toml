@@ -1,13 +1,13 @@
 [build-system]
-requires = ["setuptools>=61", "wheel"]
+requires = ["setuptools>=61", "setuptools_scm[toml]>=8", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "muvit"
-version = "0.0.1"  # Set your actual version here
-description = "Multi-resolution multi-modal Vision Transformer for large microscopy images"
+dynamic = ["version"]
+description = "Multi-Resolution Vision Transformers for Learning Across Scales in Microscopy"
 readme = { file = "README.md", content-type = "text/markdown" }
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 license = { text = "BSD 3-Clause License" }
 authors = [
     { name = "Albert Dominguez Mantes", email = "albert.dominguezmantes@epfl.ch" },
@@ -15,53 +15,28 @@ authors = [
 ]
 urls = { Homepage = "https://github.com/weigertlab/muvit" }
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 3 - Alpha",
     "Environment :: GPU :: NVIDIA CUDA",
     "Intended Audience :: Science/Research",
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering"
 ]
 
 dependencies = [
-    "argparse",
-    "augmend",
-    "cairosvg",
-    "configargparse",
-    "csbdeep",
-    "dask",
     "einops",
-    "gputools",
-    "h5py",
-    "imageio",
-    "iohub",
-    "joblib",
     "lightning",
     "matplotlib",
     "numpy",
-    "pynrrd",
-    "ome-zarr",
-    "pandas",
     "Pillow",
-    "pynrrd",
-    "python-chess",
-    "python-Levenshtein",
     "pyyaml",
     "scikit-image",
-    "scikit-learn",
-    "scipy",
     "torch",
-    "torch-dct",
-    "torchsummary",
-    "torchvision",
-    "tqdm",
-    "vit-pytorch",
     "wandb",
-    "x-transformers",
-    "zarr"
+    "x-transformers"
 ]
 
 [project.optional-dependencies]
@@ -75,6 +50,10 @@ testing = [
 [tool.setuptools.packages.find]
 where = ["."]
 exclude = ["tests*"]
+
+[tool.setuptools_scm]
+version_scheme = "no-guess-dev"
+local_scheme = "no-local-version"
 
 [tool.flake8]
 ignore = ["E116", "E501", "E203"]

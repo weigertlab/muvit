@@ -3,7 +3,6 @@ from typing import Generic, Literal, Optional, Tuple, TypeVar, Union
 
 import numpy as np
 import torch
-import torch_dct
 from einops import rearrange
 from torch import Tensor, nn
 from x_transformers.x_transformers import RotaryEmbedding
@@ -12,32 +11,6 @@ from .bblocks import SaveableModel, TransformerLayer, RotaryEmbeddingTrainable, 
 
 T = TypeVar("T", bound=Tuple[int, ...])
 
-def patch_dct(x:Tensor, in_channels:int, patch_size:tuple[int,int], inverse:bool=False, norm:Literal['ortho']='ortho') -> Tensor:
-    """Apply DCT to each patch of a 2D image.
-    
-    Args:
-        x: Input patches of shape (B, N, P*P*C)
-        in_channels: Number of input channels
-        patch_size: Size of image patches
-        inverse: Whether to apply inverse DCT
-    
-    Returns:
-        Tensor of shape (B, N, P*P*C)
-    """
-    if len(patch_size) == 2:
-        func = torch_dct.dct_2d if not inverse else torch_dct.idct_2d
-        x = rearrange(x, 'b n (p1 p2 c) -> b (n c) p1 p2', p1=patch_size[0], p2=patch_size[1], c=in_channels)
-        x = func(x, norm=norm)
-        x = rearrange(x, 'b (n c) p1 p2 -> b n (p1 p2 c)', c=in_channels)
-    elif len(patch_size) == 3:
-        func = torch_dct.dct_3d if not inverse else torch_dct.idct_3d
-        x = rearrange(x, 'b n (p1 p2 p3 c) -> b (n c) p1 p2 p3', p1=patch_size[0], p2=patch_size[1], p3=patch_size[2], c=in_channels)
-        x = func(x, norm=norm)
-        x = rearrange(x, 'b (n c) p1 p2 p3 -> b n (p1 p2 p3 c)', c=in_channels)
-    else:
-        raise ValueError(f"Invalid patch size: {patch_size} (must be 2 or 3)")
-    
-    return x
 
 class MuViTEncoder(SaveableModel, ABC, Generic[T]):
     def __init__(
@@ -52,7 +25,7 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
         use_level_embed: bool = True,
         rotary_mode: Literal["none", "fixed", "shared", "per_layer"] = "per_layer",
         rotary_base: int = 10000,
-        input_space: Literal["real", "dct"] = "real",
+        input_space: Literal["real"] = "real",
         dropout: float = 0.0,
     ):
         """Initialize a multi-level Vision Transformer encoder.
@@ -68,7 +41,7 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
             use_level_embed: Whether to use level embeddings
             rotary_mode: Type of rotary embeddings (none/fixed/shared/per_layer)
             rotary_base: Base for rotary embeddings
-            input_space: Input space (real/dct)
+            input_space: Input space (real)
             dropout: Dropout probability
         """
         super().__init__()
@@ -209,14 +182,9 @@ class MuViTEncoder(SaveableModel, ABC, Generic[T]):
         pass
 
     def patch_space_transform(self, patches: Tensor, inverse: bool = False) -> Tensor:
-        """transform real or dct space."""
+        """transform if input space is not real."""
         if self.input_space == "real":
             return patches
-        elif self.input_space == "dct":
-            B, N, _ = patches.shape
-            return patch_dct(
-                patches.float(), self.in_channels, self.patch_size, inverse=inverse
-            ).to(patches.dtype)
         else:
             raise ValueError(f"Invalid input space: {self.input_space}")
 
