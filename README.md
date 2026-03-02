@@ -4,7 +4,7 @@
 [![paper](https://img.shields.io/badge/paper-arXiv%3A%202602.24222-b31b1b.svg)](https://doi.org/10.48550/arXiv.2602.24222)
 [![PyPI](https://img.shields.io/pypi/v/muvit)](https://pypi.org/project/muvit/)
 [![Python](https://img.shields.io/pypi/pyversions/muvit)](https://pypi.org/project/muvit/)
-[![Build](https://img.shields.io/github/actions/workflow/status/weigertlab/muvit/release.yml?branch=main)](https://github.com/weigertlab/muvit/actions/workflows/release.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/weigertlab/muvit/release.yml?label=build)](https://github.com/weigertlab/muvit/actions/workflows/release.yml)
 [![Downloads](https://static.pepy.tech/badge/muvit)](https://pepy.tech/project/muvit)
 [![License](https://img.shields.io/github/license/weigertlab/muvit?cacheSeconds=300&v=1)](https://github.com/weigertlab/muvit/blob/main/LICENSE)
 </div>
