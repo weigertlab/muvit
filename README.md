@@ -10,7 +10,7 @@
 
 # _MuViT_: Multi-Resolution Vision Transformers for Learning Across Scales in Microscopy 
 
-Official implementation of _MuViT_ (CVPR 2026), a vision transformer-based architecture designed to process gigapixel microscopy images by jointly modelling multiple scales with a single encoder. For technical details please check the [preprint](https://doi.org/10.48550/arXiv.2602.24222).
+Official implementation of _MuViT_ (CVPR 2026), a vision transformer architecture that fuses true multi-resolution observations from the same image within a single encoder, for large-scale microscopy analysis. For technical details please check the [preprint](https://doi.org/10.48550/arXiv.2602.24222).
 
 This repository contains the implementation of the _MuViT_ architecture, along with the multi-resolution Masked Autoencoder (MAE) pre-training framework.
 
@@ -18,9 +18,9 @@ This repository contains the implementation of the _MuViT_ architecture, along w
 
 ![Fig overview](assets/fig_overview.png)
 
-Modern microscopy yields gigapixel images capturing structures with hierarchical organization spanning from individual cell morphology to broad tissue architecture. A central challenge in analyzing those images is that models must trade off effective context against spatial resolution. Standard CNNs or ViTs typically operate on single-resolution crops, with hierarchical feature pyramids being built from a single view.
+Modern microscopy routinely produces gigapixel images containing structures across multiple spatial scales, from fine cellular morphology to broader tissue organization. A central challenge in analyzing these images is that models must trade off effective context against spatial resolution. Standard CNNs or ViTs typically operate on single-resolution crops, building hierarchical feature pyramids from a single view.
 
-To tackle this, _MuViT_ is designed to jointly process FOVs of the same image at different physical resolutions within a unified encoder. This is achieved by jointly feeding the different scales to the model and adding consistent _world-coordinate_ RoPE, a simple yet effective mechanism which ensures that the same physical location receives the same positional encoding across scales. This enables the attention mechanism to work across different scales, allowing integration of wide-field context (_e.g._ anatomical) with high-resolution detail (_e.g._ cellular) for solving dense computer vision tasks, like segmentation.
+To tackle this, _MuViT_ jointly processes crops of the same image at different physical resolutions within a unified encoder. All patches are embedded into a shared world-coordinate system via rotary positional embeddings (RoPE), ensuring that the same physical location receives the same positional encoding across scales. This enables cross-resolution attention, allowing integration of wide-field context (_e.g._ anatomical) with high-resolution detail (_e.g._ cellular) for dense prediction tasks like segmentation.
 
 Furthermore, _MuViT_ extends the Masked Autoencoder (MAE) pre-training framework to a multi-resolution setting to learn powerful representations from unlabeled large-scale data. This produces highly informative, scale-consistent features that substantially accelerate convergence and improve sample efficiency on downstream tasks.
 
@@ -59,7 +59,7 @@ class MyMuViTDataset(MuViTDataset):
         return 1 # change accordingly
 
     @property
-    def levels(self) -> Tuple[int, ...]:
+    def levels(self) -> tuple[int, ...]:
         # return resolution levels (in ascending order)
         return (1,8,32) # change accordingly
 
@@ -78,7 +78,7 @@ class MyMuViTDataset(MuViTDataset):
 
 #### Bounding box format
 
-The `bbox` (bounding box) tensor defines the exact physical extent (field of view) of each image crop within a shared _world-coordinate_ system, which we define as the highest resolution pixel space. For a single dataset sample, it must have the shape $(L, 2, N_d)$, where $L$ is the number of resolution levels and $Nd$ is the number of spatial dimensions (e.g., 2). The second dimension, always of size 2 represents the boundaries of the crop: index 0 contains the minimum coordinates (top-left, i.e., `[y_min, x_min]`) and index 1 contains the maximum coordinates (bottom-right, i.e., `[y_max, x_max]`). Providing them as accurately as possible is crucial, as _MuViT_ relies on them to geometrically align the different resolutions.
+The `bbox` (bounding box) tensor defines the exact physical extent (field of view) of each image crop within a shared _world-coordinate_ system, which we define as the highest resolution pixel space. For a single dataset sample, it must have the shape $(L, 2, N_d)$, where $L$ is the number of resolution levels and $N_d$ is the number of spatial dimensions (e.g., 2). The second dimension, always of size 2 represents the boundaries of the crop: index 0 contains the minimum coordinates (top-left, i.e., `[y_min, x_min]`) and index 1 contains the maximum coordinates (bottom-right, i.e., `[y_max, x_max]`). Providing them as accurately as possible is crucial, as _MuViT_ relies on them to geometrically align the different resolutions.
 
 ### Multiscale MAE pre-training
 
