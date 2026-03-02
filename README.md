@@ -1,6 +1,7 @@
 <div align="center">
   <img src="assets/logo.png" alt="logo" width="300">
 
+[![paper](https://img.shields.io/badge/paper-arXiv%3A%202602.24222-b31b1b.svg)](https://doi.org/10.48550/arXiv.2602.24222)
 [![PyPI](https://img.shields.io/pypi/v/muvit)](https://pypi.org/project/muvit/)
 [![Python](https://img.shields.io/pypi/pyversions/muvit)](https://pypi.org/project/muvit/)
 [![Build](https://img.shields.io/github/actions/workflow/status/weigertlab/muvit/release.yml?branch=main)](https://github.com/weigertlab/muvit/actions/workflows/release.yml)
@@ -10,7 +11,7 @@
 
 # _MuViT_: Multi-Resolution Vision Transformers for Learning Across Scales in Microscopy 
 
-Official implementation of _MuViT_ (CVPR 2026), a vision transformer architecture that fuses true multi-resolution observations from the same image within a single encoder, for large-scale microscopy analysis. For technical details please check the [preprint](https://doi.org/10.48550/arXiv.2602.24222).
+Official implementation of _MuViT_ (CVPR 2026), a vision transformer architecture that fuses true multi-resolution observations from the same image within a single encoder, for large-scale microscopy analysis. For technical details check the [preprint](https://doi.org/10.48550/arXiv.2602.24222).
 
 This repository contains the implementation of the _MuViT_ architecture, along with the multi-resolution Masked Autoencoder (MAE) pre-training framework.
 
