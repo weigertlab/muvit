@@ -3,14 +3,14 @@
 
 [![PyPI](https://img.shields.io/pypi/v/muvit)](https://pypi.org/project/muvit/)
 [![Python](https://img.shields.io/pypi/pyversions/muvit)](https://pypi.org/project/muvit/)
-<!--[![Build](https://img.shields.io/github/actions/workflow/status/weigertlab/muvit/release.yml?branch=main)](https://github.com/weigertlab/muvit/actions/workflows/release.yml)-->
-<!--[![Downloads](https://static.pepy.tech/badge/muvit)](https://pepy.tech/project/muvit)-->
-<!--[![License](https://img.shields.io/github/license/weigertlab/muvit)](https://github.com/weigertlab/muvit/blob/main/LICENSE)-->
+[![Build](https://img.shields.io/github/actions/workflow/status/weigertlab/muvit/release.yml?branch=main)](https://github.com/weigertlab/muvit/actions/workflows/release.yml)
+[![Downloads](https://static.pepy.tech/badge/muvit)](https://pepy.tech/project/muvit)
+[![License](https://img.shields.io/github/license/weigertlab/muvit)](https://github.com/weigertlab/muvit/blob/main/LICENSE)
 </div>
 
 # _MuViT_: Multi-Resolution Vision Transformers for Learning Across Scales in Microscopy 
 
-Official implementation of _MuViT_ (CVPR 2026), a vision transformer-based architecture designed to process gigapixel microscopy images by jointly modelling multiple scales with a single encoder. For technical details please check the preprint (coming _very_ soon!). 
+Official implementation of _MuViT_ (CVPR 2026), a vision transformer-based architecture designed to process gigapixel microscopy images by jointly modelling multiple scales with a single encoder. For technical details please check the [preprint](https://doi.org/10.48550/arXiv.2602.24222).
 
 This repository contains the implementation of the _MuViT_ architecture, along with the multi-resolution Masked Autoencoder (MAE) pre-training framework.
 
@@ -130,5 +130,13 @@ The method `compute_features()` of an encoder will run a forward pass on a given
 If you use this code for your research, please cite the following article:
 
 ```
-TODO
+misc{dominguezmantes2026muvit,
+      title={MuViT: Multi-Resolution Vision Transformers for Learning Across Scales in Microscopy}, 
+      author={Albert Dominguez Mantes and Gioele La Manno and Martin Weigert},
+      year={2026},
+      eprint={2602.24222},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2602.24222}, 
+}
 ```
