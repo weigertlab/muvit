@@ -130,7 +130,7 @@ The method `compute_features()` of an encoder will run a forward pass on a given
 If you use this code for your research, please cite the following article:
 
 ```
-misc{dominguezmantes2026muvit,
+@misc{dominguezmantes2026muvit,
       title={MuViT: Multi-Resolution Vision Transformers for Learning Across Scales in Microscopy}, 
       author={Albert Dominguez Mantes and Gioele La Manno and Martin Weigert},
       year={2026},
